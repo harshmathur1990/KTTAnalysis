@@ -1,7 +1,7 @@
 import sys
-sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
+# sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
 # sys.path.insert(2, '/home/harsh/CourseworkRepo/WFAComparison')
-# sys.path.insert(1, 'F:\\Harsh\\CourseworkRepo\\stic\\example')
+sys.path.insert(1, '/mnt/f/Harsh/CourseworkRepo/stic/example')
 import h5py
 import numpy as np
 import sunpy.io
@@ -313,31 +313,39 @@ def calculate_straylight_from_median_profile(medianprofile_path, catalog_file, s
 
 
 def generate_stic_input_files_caller(datestring):
-    base_path = Path(
-        '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/'
-    )
-
     # base_path = Path(
-    #     'F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes'
+    #     '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/'
     # )
 
-    catalog_file_8662 = '/home/harsh/CourseworkRepo/KTTAnalysis/catalog_8662.txt'
+    base_path = Path(
+        '/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes'
+    )
 
-    catalog_file_6563 = '/home/harsh/CourseworkRepo/KTTAnalysis/catalog_6563.txt'
-
-    synth_file_6563 = '/home/harsh/CourseworkRepo/KTTAnalysis/falc_output_halpha_catalog.nc'
-
-    synth_file_8662 = '/home/harsh/CourseworkRepo/KTTAnalysis/falc_output_CaII8662_catalog.nc'
-
-    # catalog_file_8662 = 'F:\\Harsh\\CourseworkRepo\\KTTAnalysis\\catalog_8662.txt'
+    # catalog_file_8662 = '/home/harsh/CourseworkRepo/KTTAnalysis/catalog_8662.txt'
     #
-    # catalog_file_6563 = 'F:\\Harsh\\CourseworkRepo\\KTTAnalysis\\catalog_6563.txt'
+    # catalog_file_6563 = '/home/harsh/CourseworkRepo/KTTAnalysis/catalog_6563.txt'
+
+    # synth_file_6563 = '/home/harsh/CourseworkRepo/KTTAnalysis/falc_output_halpha_catalog.nc'
+    #
+    # synth_file_8662 = '/home/harsh/CourseworkRepo/KTTAnalysis/falc_output_CaII8662_catalog.nc'
+
+    synth_file_6563 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/falc_output_halpha_catalog.nc'
+
+    synth_file_8662 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/falc_output_CaII8662_catalog.nc'
+
+    catalog_file_8662 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/catalog_8662.txt'
+
+    catalog_file_6563 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/catalog_6563.txt'
 
     datepath = base_path / datestring
 
     level2path = datepath / 'Level-2'
 
     level3path = datepath / 'Level-3'
+
+    level2path.mkdir(parents=True, exist_ok=True)
+
+    level3path.mkdir(parents=True, exist_ok=True)
 
     all_files = level2path.glob('**/*')
 
@@ -424,8 +432,25 @@ def merge_ca_ha_data():
     )
 
 
+def convert_dat_to_png(base_path):
+    if isinstance(base_path, str):
+        base_path = Path(base_path)
+
+    all_files = base_path.glob('**/*')
+
+    all_dat_files = [file for file in all_files if file.name.startswith('Curr') and file.name.endswith('.dat')]
+
+    for dat_file in all_dat_files:
+        image = np.fromfile(dat_file, dtype=np.float64).reshape(256, 256)
+        plt.close('all')
+        plt.imshow(image, cmap='gray', origin='lower')
+        plt.savefig(base_path / '{}.pdf'.format(dat_file.name), format='pdf', dpi=300)
+
+
 if __name__ == '__main__':
-    # datestring = '20230603'
+    # datestring = '20230522'
     # generate_stic_input_files_caller(datestring)
 
-    merge_ca_ha_data()
+    # merge_ca_ha_data()
+
+    convert_dat_to_png('/mnt/f/Harsh/CourseworkRepo/New folder/20230603_092238')

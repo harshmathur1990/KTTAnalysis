@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import h5py
 from pathlib import Path
+import scipy.ndimage
 
 '''
 To Call this method:
@@ -30,7 +31,7 @@ def flicker(image1, image2, rate=1, animation_path=None, limits=None):
 
     image2 = image2 / np.nanmax(image2)
 
-    final_image_1 = np.zeros(
+    final_image_1 = np.ones(
         shape=(
             max(
                 image1.shape[0],
@@ -41,9 +42,9 @@ def flicker(image1, image2, rate=1, animation_path=None, limits=None):
                 image2.shape[1]
             )
         )
-    )
+    ) * np.median(image1)
 
-    final_image_2 = np.zeros(
+    final_image_2 = np.ones(
         shape=(
             max(
                 image1.shape[0],
@@ -54,7 +55,7 @@ def flicker(image1, image2, rate=1, animation_path=None, limits=None):
                 image2.shape[1]
             )
         )
-    )
+    ) * np.median(image2)
 
     final_image_1[0: image1.shape[0], 0: image1.shape[1]] = image1
 
@@ -105,14 +106,23 @@ def flicker(image1, image2, rate=1, animation_path=None, limits=None):
 
 
 if __name__ == '__main__':
-    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+    # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+
+    base_path = Path('/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
     datestring = '20230603'
 
     level3path = base_path / datestring / 'Level-3'
+    level4path = base_path / datestring / 'Level-4'
 
-    file1 = h5py.File(level3path / 'Halpha_20230603_092458_stic_profiles.nc', 'r')
-    file2 = h5py.File(level3path / 'CaII8662_20230603_092458_stic_profiles.nc', 'r')
+    file1 = h5py.File(level3path / 'Halpha_20230603_073616_stic_profiles.nc', 'r')
+    data = np.loadtxt(level4path / 'submap.txt')
 
-    flicker(file1['profiles'][0, :, 13:, 100, 0], file2['profiles'][0, :, :-3, 100, 0])
+    print(scipy.ndimage.rotate(file1['profiles'][0, :, :, 32, 0].T, -11, cval=file1['profiles'][0, :, :, 32, 0].mean(), reshape=True).shape)
+    print(data[:, :].shape)
+    flicker(scipy.ndimage.rotate(file1['profiles'][0, :, :, 32, 0].T, -11, cval=file1['profiles'][0, :, :, 32, 0].mean(), reshape=True), data)
+
+    # print(file1['profiles'][0, :, 10:, 32, 0].T.shape)
+    # print(data[0:-27, 12:-12].shape)
+    # flicker(file1['profiles'][0, :, 10:, 32, 0].T, data[0:-27, 12:-12])
 
