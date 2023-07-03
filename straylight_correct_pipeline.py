@@ -393,45 +393,6 @@ def generate_stic_input_files_caller(datestring):
             generate_stic_input_files(fits_file, r_fwhm, r_sigma, r_straylight, multiplicative_factor, wave, 'CaII8662',
                                       stic_cgs_calib_factor, norm_median_stray, level3path, datestring, timestring, wave_indice)
 
-def merge_ca_ha_data():
-    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
-
-    datestring = '20230603'
-
-    level3path = base_path / datestring / 'Level-3'
-
-    level4path = base_path / datestring / 'Level-4'
-
-    timestring = '092458'
-
-    file1 = h5py.File(level3path / 'Halpha_{}_{}_stic_profiles.nc'.format(datestring, timestring), 'r')
-    file2 = h5py.File(level3path / 'CaII8662_{}_{}_stic_profiles.nc'.format(datestring, timestring), 'r')
-
-    nx = file1['profiles'].shape[2] - 13
-    ny = file1['profiles'].shape[1]
-
-    ha = sp.profile(nx=nx, ny=ny, ns=4, nw=file1['wav'].shape[0])
-    ca = sp.profile(nx=nx, ny=ny, ns=4, nw=file2['wav'].shape[0])
-
-    ha.wav[:] = file1['wav'][()]
-
-    ha.dat[0, :, :, :, :] = file1['profiles'][0, :, 13:]
-
-    ha.weights = file1['weights'][()]
-
-    ca.wav[:] = file2['wav'][()]
-
-    ca.dat[0, :, :, :, :] = file2['profiles'][0, :, :-3]
-
-    ca.weights = file2['weights'][()]
-
-    all_profiles = ca + ha
-
-    all_profiles.write(
-        level4path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc'.format(datestring, timestring)
-    )
-
-
 def convert_dat_to_png(base_path):
     if isinstance(base_path, str):
         base_path = Path(base_path)
