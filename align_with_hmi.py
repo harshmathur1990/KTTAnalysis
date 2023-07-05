@@ -1,7 +1,8 @@
 import sys
-sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
+# sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
 # sys.path.insert(2, '/home/harsh/CourseworkRepo/WFAComparison')
 # sys.path.insert(1, '/mnt/f/Harsh/CourseworkRepo/stic/example')
+sys.path.insert(1, 'F:\\Harsh\\CourseworkRepo\\stic\\example')
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -159,7 +160,11 @@ def make_correct_shape(image1, image2, fill_value_1, fill_value_2):
     return final_image_1, final_image_2
 
 def merge_ca_ha_data():
-    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+    # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+
+    # base_path = Path('/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+
+    base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
 
     datestring = '20230603'
 
@@ -348,11 +353,14 @@ def merge_ca_ha_data():
         level4path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc'.format(datestring, timestring)
     )
 
+    rho_p = np.sqrt(init_x ** 2 + init_y ** 2)
+
+    mu = np.sqrt(1 - np.square(rho_p / hmi_map.rsun_obs.value))
 
 def run_flicker():
-    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+    # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
-    # base_path = Path('/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+    base_path = Path('/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
     datestring = '20230603'
 
@@ -409,5 +417,5 @@ def run_flicker():
 
 
 if __name__ == '__main__':
-    # merge_ca_ha_data()
-    run_flicker()
+    merge_ca_ha_data()
+    # run_flicker()
