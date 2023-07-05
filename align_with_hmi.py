@@ -220,10 +220,12 @@ def merge_ca_ha_data():
 
     rotation_angle_wrf_hmi = -15
 
-    a, b, c, d, e, f, g, h, i, j, k, l = 14, 84, 2, -12, 0, -14, 0, -14, 0, -18, 14, -9
+    a, b, c, d, e, f, g, h, i, j, k, l = 14, 84, 2, 84, 0, 84, 2, 84, 0, 0, 14, 0
 
     file1 = h5py.File(level3path / 'Halpha_{}_{}_stic_profiles.nc'.format(datestring, timestring), 'r')
     file2 = h5py.File(level3path / 'CaII8662_{}_{}_stic_profiles.nc'.format(datestring, timestring), 'r')
+
+    falc_output = h5py.File(level4path / 'falc_output_mu_0p87.nc', 'r')
 
     vec_rotate = np.vectorize(rotate, signature='(m,n),(),()->(p,q)')
 
@@ -310,18 +312,33 @@ def merge_ca_ha_data():
     flicker(sc_file_1_profiles_rotated_data[0, :, :, 32, 0], sc_file_2_profiles_rotated_data[0, :, :, 32, 0])
     flicker(sc_file_1_profiles_rotated_data[0, :, :, 32, 0], sm.data)
 
+    a, b, c = np.unravel_index(np.argmax(sc_file_1_profiles_rotated_data[0, :, :, :, 0]), (sc_file_1_profiles_rotated_data.shape[1], sc_file_1_profiles_rotated_data.shape[2], sc_file_1_profiles_rotated_data.shape[3]))
+    medprof_halpha = sc_file_1_profiles_rotated_data[0, a, b, :, 0]
+
+    a, b, c = np.unravel_index(np.argmax(sc_file_2_profiles_rotated_data[0, :, :, :, 0]), (sc_file_2_profiles_rotated_data.shape[1], sc_file_2_profiles_rotated_data.shape[2], sc_file_2_profiles_rotated_data.shape[3]))
+    medprof_ca = sc_file_2_profiles_rotated_data[0, a, b, :, 0]
+
+    ind_halpha = np.where(medprof_halpha != 0)[0][0]
+    ind_ca = np.where(medprof_ca != 0)[0][0]
+
+    ind_synth_halpha = np.argmin(np.abs(falc_output['wav'][()] - file1['wav'][ind_halpha]))
+    ind_synth_ca = np.argmin(np.abs(falc_output['wav'][()] - file1['wav'][ind_ca]))
+
+    stic_halpha_fac = falc_output['profiles'][0, 0, 0, ind_synth_halpha, 0] / medprof_halpha[ind_halpha]
+    stic_ca_fac = falc_output['profiles'][0, 0, 0, ind_synth_ca, 0] / medprof_ca[ind_ca]
+
     ha = sp.profile(nx=sc_file_1_profiles_rotated_data.shape[2], ny=sc_file_1_profiles_rotated_data.shape[1], ns=4, nw=file1['wav'].shape[0])
     ca = sp.profile(nx=sc_file_2_profiles_rotated_data.shape[2], ny=sc_file_2_profiles_rotated_data.shape[1], ns=4, nw=file2['wav'].shape[0])
 
     ha.wav[:] = file1['wav'][()]
 
-    ha.dat[0, :, :, :, :] = sc_file_1_profiles_rotated_data
+    ha.dat[0, :, :, :, :] = sc_file_1_profiles_rotated_data * stic_halpha_fac
 
     ha.weights = file1['weights'][()]
 
     ca.wav[:] = file2['wav'][()]
 
-    ca.dat[0, :, :, :, :] = sc_file_2_profiles_rotated_data
+    ca.dat[0, :, :, :, :] = sc_file_2_profiles_rotated_data * stic_ca_fac
 
     ca.weights = file2['weights'][()]
 
@@ -344,7 +361,36 @@ def run_flicker():
 
     file1 = h5py.File(level3path / 'Halpha_20230603_073616_stic_profiles.nc', 'r')
     file2 = h5py.File(level3path / 'CaII8662_20230603_073616_stic_profiles.nc', 'r')
-    data = np.loadtxt(level4path / 'submap.txt')
+    hmi_image, hmi_header = sunpy.io.read_file(level4path / 'hmi.Ic_720s.20230603_043600_TAI.3.continuum.fits')[1]
+    hmi_map = sunpy.map.Map(hmi_image, hmi_header)
+    aia_map = register(hmi_map)
+    spread = 50
+
+    init_x, init_y = -380, -244
+
+    init = (init_x - spread / 2, init_y - spread / 2)
+
+    final = (init_x + spread / 2, init_y + spread / 2)
+
+    y0 = init[1] * u.arcsec
+
+    x0 = init[0] * u.arcsec
+
+    xf = final[0] * u.arcsec
+
+    yf = final[1] * u.arcsec
+
+    bottom_left1 = astropy.coordinates.SkyCoord(
+        x0, y0, frame=aia_map.coordinate_frame
+    )
+
+    top_right1 = astropy.coordinates.SkyCoord(
+        xf, yf, frame=aia_map.coordinate_frame
+    )
+
+    submap = aia_map.submap(bottom_left=bottom_left1, top_right=top_right1)
+
+    data = submap.data
 
     fill_value_1 = np.nanmedian(file1['profiles'][0, :, :, 32, 0])
     fill_value_2 = np.nanmedian(file2['profiles'][0, :, :, 32, 0])
@@ -354,8 +400,8 @@ def run_flicker():
     rotated_data_1[np.where(np.isnan(rotated_data_1))] = fill_value_1
     rotated_data_2[np.where(np.isnan(rotated_data_2))] = fill_value_2
 
-    flicker(rotated_data_1[14:, 2:-12], rotated_data_2[:-14, :-14], fill_value_1, fill_value_2)
-    # flicker(rotated_data_1[14:, 2:-12], data[:-18, 14:-9], 0, fill_value_3)
+    flicker(rotated_data_1[14:, 2:], rotated_data_2[:, :], fill_value_1, fill_value_2)
+    # flicker(rotated_data_1[5:], data[:, 5:], fill_value_1, fill_value_3)
     # flicker(rotated_data_1[14:, :-12], rotated_data_2[:, :])
     # print(file1['profiles'][0, :, 10:, 32, 0].T.shape)
     # print(data[0:-27, 12:-12].shape)
