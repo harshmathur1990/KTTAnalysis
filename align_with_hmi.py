@@ -1,8 +1,8 @@
 import sys
 # sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
 # sys.path.insert(2, '/home/harsh/CourseworkRepo/WFAComparison')
-# sys.path.insert(1, '/mnt/f/Harsh/CourseworkRepo/stic/example')
-sys.path.insert(1, 'F:\\Harsh\\CourseworkRepo\\stic\\example')
+sys.path.insert(1, '/mnt/f/Harsh/CourseworkRepo/stic/example')
+# sys.path.insert(1, 'F:\\Harsh\\CourseworkRepo\\stic\\example')
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -13,11 +13,6 @@ from aiapy.calibrate import register
 import sunpy.map
 from astropy import units as u
 import astropy.coordinates
-import scipy.ndimage
-from sunkit_image.coalignment import mapsequence_coalign_by_match_template as mc_coalign
-from astropy.coordinates import SkyCoord
-from sunpy.coordinates import HeliographicStonyhurst
-import scipy.ndimage
 import sunpy.io
 from prepare_data import *
 
@@ -374,7 +369,7 @@ def run_flicker():
     aia_map = register(hmi_map)
     spread = 50
 
-    init_x, init_y = -380, -244
+    init_x, init_y = -397, -244
 
     init = (init_x - spread / 2, init_y - spread / 2)
 
@@ -403,6 +398,22 @@ def run_flicker():
     fill_value_1 = np.nanmedian(file1['profiles'][0, :, :, 32, 0])
     fill_value_2 = np.nanmedian(file2['profiles'][0, :, :, 32, 0])
     fill_value_3 = np.nanmedian(data)
+
+    final_image_1 = np.ones(
+        shape=(
+            max(
+                file1['profiles'].shape[2],
+                submap.data.shape[0]
+            ),
+            max(
+                file1['profiles'].shape[1],
+                submap.data.shape[1]
+            )
+        )
+    ) * fill_value_1
+
+    final_image_1[0: file1['profiles'].shape[2], 0: file1['profiles'].shape[1]] = file1['profiles'][0, :, :, 32, 0].T
+
     rotated_data_1 = scipy.ndimage.rotate(file1['profiles'][0, :, :, 32, 0].T, -15, cval=fill_value_1, reshape=True)
     rotated_data_2 = scipy.ndimage.rotate(file2['profiles'][0, :, :, 32, 0].T, -15, cval=fill_value_2, reshape=True)
     rotated_data_1[np.where(np.isnan(rotated_data_1))] = fill_value_1
