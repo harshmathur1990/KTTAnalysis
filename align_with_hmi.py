@@ -1,8 +1,8 @@
 import sys
-# sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
+sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
 # sys.path.insert(2, '/home/harsh/CourseworkRepo/WFAComparison')
 # sys.path.insert(1, '/mnt/f/Harsh/CourseworkRepo/stic/example')
-sys.path.insert(1, 'F:\\Harsh\\CourseworkRepo\\stic\\example')
+# sys.path.insert(1, 'F:\\Harsh\\CourseworkRepo\\stic\\example')
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -358,9 +358,9 @@ def merge_ca_ha_data():
     mu = np.sqrt(1 - np.square(rho_p / hmi_map.rsun_obs.value))
 
 def run_flicker():
-    # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
-    base_path = Path('/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+    # base_path = Path('/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
     datestring = '20230603'
 
@@ -374,7 +374,7 @@ def run_flicker():
     aia_map = register(hmi_map)
     spread = 50
 
-    init_x, init_y = -380, -244
+    init_x, init_y = -397, -244
 
     init = (init_x - spread / 2, init_y - spread / 2)
 
@@ -408,8 +408,8 @@ def run_flicker():
     rotated_data_1[np.where(np.isnan(rotated_data_1))] = fill_value_1
     rotated_data_2[np.where(np.isnan(rotated_data_2))] = fill_value_2
 
-    flicker(rotated_data_1[14:, 2:], rotated_data_2[:, :], fill_value_1, fill_value_2)
-    # flicker(rotated_data_1[5:], data[:, 5:], fill_value_1, fill_value_3)
+    # flicker(rotated_data_1[14:, 2:], rotated_data_2[:, :], fill_value_1, fill_value_2)
+    flicker(rotated_data_1[5:], data[:, 5:], fill_value_1, fill_value_3)
     # flicker(rotated_data_1[14:, :-12], rotated_data_2[:, :])
     # print(file1['profiles'][0, :, 10:, 32, 0].T.shape)
     # print(data[0:-27, 12:-12].shape)
@@ -417,5 +417,5 @@ def run_flicker():
 
 
 if __name__ == '__main__':
-    merge_ca_ha_data()
-    # run_flicker()
+    # merge_ca_ha_data()
+    run_flicker()

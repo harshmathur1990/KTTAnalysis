@@ -1,7 +1,7 @@
 import sys
-# sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
+sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
 # sys.path.insert(2, '/home/harsh/CourseworkRepo/WFAComparison')
-sys.path.insert(1, '/mnt/f/Harsh/CourseworkRepo/stic/example')
+# sys.path.insert(1, '/mnt/f/Harsh/CourseworkRepo/stic/example')
 import h5py
 import numpy as np
 import sunpy.io
@@ -11,6 +11,7 @@ from stray_light_approximation import *
 import matplotlib.pyplot as plt
 from lmfit import minimize, Parameters
 from copy import deepcopy
+import scipy.ndimage
 
 
 def prep_optimize_func(catalog):
@@ -160,7 +161,11 @@ def generate_input_atmos_file():
     m.write('falc_60_19.nc')
 
 
-def calculate_straylight_from_median_profile(medianprofile_path, catalog_file, synth_path, write_path, datestring, timestring, wave_indice=None):
+def calculate_straylight_from_median_profile(
+        medianprofile_path, catalog_file, synth_path,
+        write_path, datestring, timestring, wave_indice=None,
+        cont_wave=0, fac_ind_s=None, fac_ind_e=None
+):
 
     median_profile = np.loadtxt(medianprofile_path)
 
@@ -171,7 +176,7 @@ def calculate_straylight_from_median_profile(medianprofile_path, catalog_file, s
     if wave_indice is None:
         wave_indice = [0, median_profile.size]
 
-    median_profile = median_profile[wave_indice[0]:wave_indice[-1]] / median_profile[wave_indice[0]:wave_indice[-1]][0]
+    median_profile = median_profile[wave_indice[0]:wave_indice[-1]] / median_profile[wave_indice[0]:wave_indice[-1]][cont_wave]
 
     catalog = np.loadtxt(catalog_file)
 
@@ -180,23 +185,32 @@ def calculate_straylight_from_median_profile(medianprofile_path, catalog_file, s
     params = Parameters()
 
     if catalog[0, 0] < 6570:
-        params.add('wave_0', brute_step=0.1, min=6560, max=6566)
-        params.add('disp', brute_step=0.001, min=-0.01, max=0)
+        plt.close('all')
+        plt.plot(median_profile)
+        point = np.array(plt.ginput(2, 600))
+        a, b = np.polyfit([point[0][0], point[1][0]], [6562.8, 6560.57], 1)
+        wave = np.arange(median_profile.size) * a + b
     else:
-        params.add('wave_0', brute_step=0.1, min=8660, max=8665)
-        params.add('disp', brute_step=0.001, min=0, max=0.01)
+        # params.add('wave_0', brute_step=0.1, min=8660, max=8665)
+        # params.add('disp', brute_step=0.001, min=0.003, max=0.007)
+        #
+        # out = minimize(
+        #     optimize_func_residual,
+        #     params,
+        #     args=(
+        #         np.arange(median_profile.size),
+        #         median_profile
+        #     ),
+        #     method='brute'
+        # )
 
-    out = minimize(
-        optimize_func_residual,
-        params,
-        args=(
-            np.arange(median_profile.size),
-            median_profile
-        ),
-        method='brute'
-    )
+        # wave = np.arange(median_profile.size) * out.params['disp'].value + out.params['wave_0'].value
 
-    wave = np.arange(median_profile.size) * out.params['disp'].value + out.params['wave_0'].value
+        plt.close('all')
+        plt.plot(median_profile)
+        point = np.array(plt.ginput(3, 600))
+        a, b = np.polyfit([point[0][0], point[1][0], point[2][0]], [8661.908, 8661.994, 8662.176], 1)
+        wave = np.arange(median_profile.size) * a + b
 
     if catalog[0, 0] < 6570:
         wavelength = 6562.8
@@ -209,16 +223,22 @@ def calculate_straylight_from_median_profile(medianprofile_path, catalog_file, s
         wave,
         catalog[:, 1],
         catalog[:, 0],
-        cont_wave=wave[0]
+        cont_wave=wave[cont_wave]
     )
 
-    a, b = np.polyfit([0, norm_atlas.size - 1], [norm_atlas[0], norm_atlas[-1]], 1)
+    if fac_ind_s is None:
+        fac_ind_s = 0
+        fac_ind_e = norm_atlas.size - 1
+    else:
+        fac_ind_e += norm_atlas.size
+
+    a, b = np.polyfit([fac_ind_s, fac_ind_e], [norm_atlas[fac_ind_s], norm_atlas[fac_ind_e]], 1)
 
     atlas_slope = a * np.arange(norm_atlas.size) + b
 
     atlas_slope /= atlas_slope.max()
 
-    a, b = np.polyfit([0, norm_line.size - 1], [norm_line[0], norm_line[-1]], 1)
+    a, b = np.polyfit([fac_ind_s, fac_ind_e], [norm_line[fac_ind_s], norm_line[fac_ind_e]], 1)
 
     line_slope = a * np.arange(norm_line.size) + b
 
@@ -231,8 +251,8 @@ def calculate_straylight_from_median_profile(medianprofile_path, catalog_file, s
     norm_line *= multiplicative_factor
 
     result, result_atlas, fwhm, sigma, k_values = approximate_stray_light_and_sigma(
-        norm_line,
-        norm_atlas,
+        norm_line[fac_ind_s:fac_ind_e],
+        norm_atlas[fac_ind_s:fac_ind_e],
     )
 
     r_fwhm = fwhm[np.unravel_index(np.argmin(result), result.shape)[0]]
@@ -278,21 +298,21 @@ def calculate_straylight_from_median_profile(medianprofile_path, catalog_file, s
 
     stray_corrected_median = median_profile * multiplicative_factor
 
-    stray_corrected_median = (stray_corrected_median - (r_straylight * stray_corrected_median[0])) / (1 - r_straylight)
+    stray_corrected_median = (stray_corrected_median - (r_straylight * stray_corrected_median[cont_wave])) / (1 - r_straylight)
 
     norm_median_stray, norm_atlas, atlas_wave = normalise_profiles(
         stray_corrected_median,
         wave,
         catalog[:, 1],
         catalog[:, 0],
-        cont_wave=wave[0]
+        cont_wave=wave[cont_wave]
     )
 
     fsynth = h5py.File(synth_path, 'r')
 
-    ind_synth = np.argmin(np.abs(fsynth['wav'][()] - wave[0]))
+    ind_synth = np.argmin(np.abs(fsynth['wav'][()] - wave[cont_wave]))
 
-    stic_cgs_calib_factor = stray_corrected_median[0] / fsynth['profiles'][0, 0, 0, ind_synth, 0]
+    stic_cgs_calib_factor = stray_corrected_median[cont_wave] / fsynth['profiles'][0, 0, 0, ind_synth, 0]
 
     fsynth.close()
 
@@ -312,30 +332,30 @@ def calculate_straylight_from_median_profile(medianprofile_path, catalog_file, s
     return r_fwhm, r_sigma, r_straylight, multiplicative_factor, wave, wavelength, broadening_km_sec, stic_cgs_calib_factor, norm_median_stray
 
 
-def generate_stic_input_files_caller(datestring):
-    # base_path = Path(
-    #     '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/'
-    # )
-
+def generate_stic_input_files_caller(datestring, cont_wave_ha=0, fac_ind_s_ha=None, fac_ind_e_ha=None, mode=None):
     base_path = Path(
-        '/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes'
+        '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/'
     )
 
-    # catalog_file_8662 = '/home/harsh/CourseworkRepo/KTTAnalysis/catalog_8662.txt'
+    # base_path = Path(
+    #     '/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes'
+    # )
+
+    catalog_file_8662 = '/home/harsh/CourseworkRepo/KTTAnalysis/catalog_8662.txt'
+
+    catalog_file_6563 = '/home/harsh/CourseworkRepo/KTTAnalysis/catalog_6563.txt'
+
+    synth_file_6563 = '/home/harsh/CourseworkRepo/KTTAnalysis/falc_output_halpha_catalog.nc'
+
+    synth_file_8662 = '/home/harsh/CourseworkRepo/KTTAnalysis/falc_output_CaII8662_catalog.nc'
+
+    # synth_file_6563 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/falc_output_halpha_catalog.nc'
+
+    # synth_file_8662 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/falc_output_CaII8662_catalog.nc'
     #
-    # catalog_file_6563 = '/home/harsh/CourseworkRepo/KTTAnalysis/catalog_6563.txt'
-
-    # synth_file_6563 = '/home/harsh/CourseworkRepo/KTTAnalysis/falc_output_halpha_catalog.nc'
+    # catalog_file_8662 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/catalog_8662.txt'
     #
-    # synth_file_8662 = '/home/harsh/CourseworkRepo/KTTAnalysis/falc_output_CaII8662_catalog.nc'
-
-    synth_file_6563 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/falc_output_halpha_catalog.nc'
-
-    synth_file_8662 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/falc_output_CaII8662_catalog.nc'
-
-    catalog_file_8662 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/catalog_8662.txt'
-
-    catalog_file_6563 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/catalog_6563.txt'
+    # catalog_file_6563 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/catalog_6563.txt'
 
     datepath = base_path / datestring
 
@@ -351,47 +371,59 @@ def generate_stic_input_files_caller(datestring):
 
     fits_files = [file for file in all_files if file.name.endswith('.fits') and file.name.startswith('v2u')]
 
+    r_fwhm_ha, r_sigma_ha, r_straylight_ha, multiplicative_factor_ha, wave_ha, wavelength_ha, broadening_km_sec_ha, stic_cgs_calib_factor_ha, norm_median_stray_ha = None, None, None, None, None, None, None, None, None
+
+    r_fwhm_ca, r_sigma_ca, r_straylight_ca, multiplicative_factor_ca, wave_ca, wavelength_ca, broadening_km_sec_ca, stic_cgs_calib_factor_ca, norm_median_stray_ca = None, None, None, None, None, None, None, None, None
+
     for fits_file in fits_files:
         name_split = fits_file.name.split('_')
         if name_split[-2] == 'halpha':
+            if mode is not None and mode == 'ca':
+                continue
             timestring = name_split[-1].split('.')[0]
 
             wave_indice = None
 
-            r_fwhm, r_sigma, r_straylight, multiplicative_factor, wave, wavelength, broadening_km_sec, stic_cgs_calib_factor, norm_median_stray = calculate_straylight_from_median_profile(
-                datepath / 'MedianProfile_DETECTOR_1.txt',
-                catalog_file_6563,
-                synth_file_6563,
-                level3path,
-                datestring,
-                timestring,
-                wave_indice=wave_indice
-            )
+            if r_fwhm_ha is None:
+                r_fwhm_ha, r_sigma_ha, r_straylight_ha, multiplicative_factor_ha, wave_ha, wavelength_ha, broadening_km_sec_ha, stic_cgs_calib_factor_ha, norm_median_stray_ha = calculate_straylight_from_median_profile(
+                    datepath / 'MedianProfile_DETECTOR_1.txt',
+                    catalog_file_6563,
+                    synth_file_6563,
+                    level3path,
+                    datestring,
+                    timestring,
+                    wave_indice=wave_indice,
+                    cont_wave=cont_wave_ha,
+                    fac_ind_s=fac_ind_s_ha,
+                    fac_ind_e=fac_ind_e_ha
+                )
 
-            generate_stic_input_files(fits_file, r_fwhm, r_sigma, r_straylight, multiplicative_factor, wave, 'Halpha',
-                                      stic_cgs_calib_factor, norm_median_stray, level3path, datestring, timestring, wave_indice)
-
-            pass
+            generate_stic_input_files(fits_file, r_fwhm_ha, r_sigma_ha, r_straylight_ha, multiplicative_factor_ha, wave_ha, 'Halpha',
+                                      stic_cgs_calib_factor_ha, norm_median_stray_ha, level3path, datestring, timestring, wave_indice)
 
         else:
+            if mode is not None and mode == 'ha':
+                continue
             wave_indice = None
             medprofpath = datepath / 'MedianProfile_DETECTOR_3.txt'
             if not medprofpath.exists():
                 medprofpath = datepath / 'MedianProfile_DETECTOR_2.txt'
 
             timestring = name_split[-1].split('.')[0]
-            r_fwhm, r_sigma, r_straylight, multiplicative_factor, wave, wavelength, broadening_km_sec, stic_cgs_calib_factor, norm_median_stray = calculate_straylight_from_median_profile(
-                medprofpath,
-                catalog_file_8662,
-                synth_file_8662,
-                level3path,
-                datestring,
-                timestring,
-                wave_indice
-            )
 
-            generate_stic_input_files(fits_file, r_fwhm, r_sigma, r_straylight, multiplicative_factor, wave, 'CaII8662',
-                                      stic_cgs_calib_factor, norm_median_stray, level3path, datestring, timestring, wave_indice)
+            if r_fwhm_ca is None:
+                r_fwhm_ca, r_sigma_ca, r_straylight_ca, multiplicative_factor_ca, wave_ca, wavelength_ca, broadening_km_sec_ca, stic_cgs_calib_factor_ca, norm_median_stray_ca = calculate_straylight_from_median_profile(
+                    medprofpath,
+                    catalog_file_8662,
+                    synth_file_8662,
+                    level3path,
+                    datestring,
+                    timestring,
+                    wave_indice
+                )
+
+            generate_stic_input_files(fits_file, r_fwhm_ca, r_sigma_ca, r_straylight_ca, multiplicative_factor_ca, wave_ca, 'CaII8662',
+                                      stic_cgs_calib_factor_ca, norm_median_stray_ca, level3path, datestring, timestring, wave_indice)
 
 def convert_dat_to_png(base_path):
     if isinstance(base_path, str):
@@ -409,9 +441,18 @@ def convert_dat_to_png(base_path):
 
 
 if __name__ == '__main__':
-    # datestring = '20230522'
-    # generate_stic_input_files_caller(datestring)
+    datestring = '20230603'
+    cont_wave_ha = -1
+    fac_ind_s_ha = 100
+    fac_ind_e_ha = -100
+    generate_stic_input_files_caller(
+        datestring,
+        cont_wave_ha,
+        fac_ind_s_ha,
+        fac_ind_e_ha,
+        mode='ca'
+    )
 
     # merge_ca_ha_data()
 
-    convert_dat_to_png('/mnt/f/Harsh/CourseworkRepo/New folder/20230603_092238')
+    # convert_dat_to_png('/mnt/f/Harsh/CourseworkRepo/New folder/20230603_092238')
