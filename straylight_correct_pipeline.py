@@ -1,7 +1,7 @@
 import sys
-sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
+# sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
 # sys.path.insert(2, '/home/harsh/CourseworkRepo/WFAComparison')
-# sys.path.insert(1, '/mnt/f/Harsh/CourseworkRepo/stic/example')
+sys.path.insert(1, '/mnt/f/Harsh/CourseworkRepo/stic/example')
 import h5py
 import numpy as np
 import sunpy.io
@@ -12,6 +12,40 @@ import matplotlib.pyplot as plt
 from lmfit import minimize, Parameters
 from copy import deepcopy
 import scipy.ndimage
+import sunpy.image.resample
+import subprocess
+
+
+AIA_SAMPLING_ARCSEC = 0.6
+
+def resample_data(image, new_shape):
+    return sunpy.image.resample.resample(
+        orig=image,
+        dimensions=new_shape,
+        method='linear',
+        minusone=False
+    )
+
+
+vec_resample_data = np.vectorize(resample_data, signature='(x,y),(n)->(w,z)')
+
+
+def resample_full_data(data, header):
+    new_shape = (
+        data.shape[1] * header['CDELT3'] / AIA_SAMPLING_ARCSEC,
+        data.shape[2] * header['CDELT2'] / AIA_SAMPLING_ARCSEC,
+    )
+
+    return np.transpose(
+        vec_resample_data(
+            np.transpose(
+                data,
+                axes=(0, 3, 1, 2)
+            ),
+            new_shape
+        ),
+        axes=(0, 2, 3, 1)
+    )
 
 
 def prep_optimize_func(catalog):
@@ -41,11 +75,11 @@ for ii in cw:
 
 def get_raw_data(filename, wave_indice=None):
 
-    data, _ = sunpy.io.read_file(filename)[0]
+    data, header = sunpy.io.read_file(filename)[0]
 
     if wave_indice is None:
-        return data
-    return data[:, :, :, wave_indice[0]:wave_indice[-1]]
+        return data, header
+    return data[:, :, :, wave_indice[0]:wave_indice[-1]], header
 
 
 def correct_for_straylight(data, r_straylight, multiplicative_factor):
@@ -65,13 +99,13 @@ def generate_stic_input_files(
         stic_cgs_calib_factor, norm_median_stray,
         write_path, datestring, timestring, wave_indice=None):
 
-    data = get_raw_data(fits_file, wave_indice)
+    data, header = get_raw_data(fits_file, wave_indice)
 
     stray_corrected_data = correct_for_straylight(
         data, r_straylight, multiplicative_factor
     )
 
-    prof = None
+    resampled_stray_corrected_data = resample_full_data(data, header)
 
     f = h5py.File(
         write_path / '{}_{}_{}_stray_corrected.h5'.format(
@@ -81,6 +115,8 @@ def generate_stic_input_files(
     )
 
     f['stray_corrected_data'] = stray_corrected_data
+
+    f['resampled_stray_corrected_data'] = resampled_stray_corrected_data
 
     f['stray_corrected_median'] = norm_median_stray
 
@@ -92,11 +128,11 @@ def generate_stic_input_files(
 
     plt.close('all')
 
-    plt.imshow(stray_corrected_data[0, :, :, 50], cmap='gray', origin='lower')
+    plt.imshow(resampled_stray_corrected_data[0, :, :, 50], cmap='gray', origin='lower')
 
     plt.savefig(write_path / '{}_{}_{}_continuum_image.pdf'.format(wave_name, datestring, timestring), format='pdf', dpi=300)
 
-    fov_data = stray_corrected_data[:, :, :, :]
+    fov_data = resampled_stray_corrected_data[:, :, :, :]
 
     wc, ic = findgrid(wave, (wave[10] - wave[9])*0.25, extra=8)
 
@@ -333,29 +369,29 @@ def calculate_straylight_from_median_profile(
 
 
 def generate_stic_input_files_caller(datestring, cont_wave_ha=0, fac_ind_s_ha=None, fac_ind_e_ha=None, mode=None):
-    base_path = Path(
-        '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/'
-    )
-
     # base_path = Path(
-    #     '/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes'
+    #     '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/'
     # )
 
-    catalog_file_8662 = '/home/harsh/CourseworkRepo/KTTAnalysis/catalog_8662.txt'
+    base_path = Path(
+        '/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes'
+    )
 
-    catalog_file_6563 = '/home/harsh/CourseworkRepo/KTTAnalysis/catalog_6563.txt'
-
-    synth_file_6563 = '/home/harsh/CourseworkRepo/KTTAnalysis/falc_output_halpha_catalog.nc'
-
-    synth_file_8662 = '/home/harsh/CourseworkRepo/KTTAnalysis/falc_output_CaII8662_catalog.nc'
-
-    # synth_file_6563 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/falc_output_halpha_catalog.nc'
-
-    # synth_file_8662 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/falc_output_CaII8662_catalog.nc'
+    # catalog_file_8662 = '/home/harsh/CourseworkRepo/KTTAnalysis/catalog_8662.txt'
     #
-    # catalog_file_8662 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/catalog_8662.txt'
+    # catalog_file_6563 = '/home/harsh/CourseworkRepo/KTTAnalysis/catalog_6563.txt'
     #
-    # catalog_file_6563 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/catalog_6563.txt'
+    # synth_file_6563 = '/home/harsh/CourseworkRepo/KTTAnalysis/falc_output_halpha_catalog.nc'
+    #
+    # synth_file_8662 = '/home/harsh/CourseworkRepo/KTTAnalysis/falc_output_CaII8662_catalog.nc'
+
+    synth_file_6563 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/falc_output_halpha_catalog.nc'
+
+    synth_file_8662 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/falc_output_CaII8662_catalog.nc'
+
+    catalog_file_8662 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/catalog_8662.txt'
+
+    catalog_file_6563 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/catalog_6563.txt'
 
     datepath = base_path / datestring
 
@@ -366,6 +402,16 @@ def generate_stic_input_files_caller(datestring, cont_wave_ha=0, fac_ind_s_ha=No
     level2path.mkdir(parents=True, exist_ok=True)
 
     level3path.mkdir(parents=True, exist_ok=True)
+
+    process = subprocess.Popen(
+        'rm -rf *',
+        cwd=str(level3path),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=True
+    )
+
+    stdout, stderr = process.communicate()
 
     all_files = level2path.glob('**/*')
 
@@ -441,16 +487,16 @@ def convert_dat_to_png(base_path):
 
 
 if __name__ == '__main__':
-    datestring = '20230603'
-    cont_wave_ha = -1
-    fac_ind_s_ha = 100
-    fac_ind_e_ha = -100
+    datestring = '20230530'
+    cont_wave_ha = 0
+    fac_ind_s_ha = None
+    fac_ind_e_ha = None
     generate_stic_input_files_caller(
         datestring,
         cont_wave_ha,
         fac_ind_s_ha,
         fac_ind_e_ha,
-        mode='ca'
+        mode=None
     )
 
     # merge_ca_ha_data()
