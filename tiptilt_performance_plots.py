@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-
+import matplotlib
 
 A0 = 0.54348
 
@@ -10,13 +10,17 @@ def make_frequency_power_plot():
 
     base_path = Path('/mnt/f/Harsh/CourseworkRepo/Tip Tilt Data/Closed Loop')
 
+    base_path = Path('/run/media/harsh/DE52135F52133BA9/TipTiltData/')
+
+    write_path = Path('/home/harsh/CourseworkRepo/KTTAnalysis/figures/')
+
     data_tiptilt = np.loadtxt(base_path / '20230603_073530'/ 'Shifts_Uncorrected.csv', delimiter=',')
 
-    data_no_tiptilt = np.genfromtxt(base_path / '20230519_100926' / 'Shifts_Uncorrected.csv', delimiter=',', invalid_raise=False)
+    data_no_tiptilt = np.genfromtxt(base_path / '20230520_074727' / 'Shifts_Uncorrected.csv', delimiter=',', invalid_raise=False)
 
-    segments = 6
+    segments = 50
 
-    segment_size = 5 # minute
+    segment_size = 1 # minute
 
     fps = 655 # per second
 
@@ -59,6 +63,10 @@ def make_frequency_power_plot():
 
     ind_non_zero = np.where(fftfreq > 0)[0]
 
+    font = {'size': 8}
+
+    matplotlib.rc('font', **font)
+
     plt.close('all')
     fig, axs = plt.subplots(1, 2, figsize=(7, 2.5))
 
@@ -72,11 +80,47 @@ def make_frequency_power_plot():
     axs[1].set_xscale('log')
     axs[1].set_yscale('log')
 
-    axs[0].set_xticks([1e-1, 1, 1e1, 1e2])
-    axs[0].set_xticklabels([1e-1, 1, 1e1, 1e2])
-    axs[1].set_xticks([1e-1, 1, 1e1, 1e2])
-    axs[1].set_xticklabels([1e-1, 1, 1e1, 1e2])
-    plt.show()
+    locmaj = matplotlib.ticker.LogLocator(base=10)
+    axs[0].xaxis.set_major_locator(locmaj)
+    axs[1].xaxis.set_major_locator(locmaj)
+    axs[1].set_yticklabels([])
+
+    axs[0].set_xlabel('Frequency [Hz]')
+    axs[1].set_xlabel('Frequency [Hz]')
+    axs[0].set_ylabel(r'Power [$\mathrm{pixel^{2}}$ $\mathrm{Hz^{-1}}$]')
+
+
+    axs[0].text(
+        0.45, 0.93,
+        'X-Axis',
+        transform=axs[0].transAxes,
+        color='brown'
+    )
+
+    axs[1].text(
+        0.45, 0.93,
+        'Y-Axis',
+        transform=axs[1].transAxes,
+        color='brown'
+    )
+
+    axs[1].text(
+        0.7, 0.93,
+        r'$-$ uncorrected',
+        transform=axs[1].transAxes,
+        color='blue'
+    )
+
+    axs[1].text(
+        0.7, 0.88,
+        r'$-$ corrected',
+        transform=axs[1].transAxes,
+        color='black'
+    )
+
+    plt.subplots_adjust(left=0.1, right=0.99, bottom=0.2, top=0.99, wspace=0.1, hspace=0.1)
+
+    plt.savefig(write_path / 'TipTiltPerformenace_2.pdf', format='pdf', dpi=300)
 
 
 if __name__ == '__main__':
