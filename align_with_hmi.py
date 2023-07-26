@@ -1,8 +1,8 @@
 import sys
-sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
+# sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
 # sys.path.insert(2, '/home/harsh/CourseworkRepo/WFAComparison')
-# sys.path.insert(1, '/mnt/f/Harsh/CourseworkRepo/stic/example')
-# sys.path.insert(1, 'F:\\Harsh\\CourseworkRepo\\stic\\example')
+sys.path.insert(1, '/mnt/f/Harsh/CourseworkRepo/stic/example')
+sys.path.insert(1, 'F:\\Harsh\\CourseworkRepo\\stic\\example')
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -28,7 +28,11 @@ flicker(data[0], data[1])
 '''
 
 
-def flicker(image1, image2, fill_value_1=0, fill_value_2=0, rate=1, animation_path=None, limits=None):
+def flicker(
+        image1, image2, fill_value_1=0, fill_value_2=0,
+        rate=1, animation_path=None, limits=None,
+        offset_1_y=0, offset_1_x=0, offset_2_y=0, offset_2_x=0
+):
 
     if limits is None:
         limits = [[None, None], [None, None]]
@@ -42,12 +46,12 @@ def flicker(image1, image2, fill_value_1=0, fill_value_2=0, rate=1, animation_pa
     final_image_1 = np.ones(
         shape=(
             max(
-                image1.shape[0],
-                image2.shape[0]
+                image1.shape[0] + offset_1_y,
+                image2.shape[0] + offset_2_y
             ),
             max(
-                image1.shape[1],
-                image2.shape[1]
+                image1.shape[1] + offset_1_x,
+                image2.shape[1] + offset_2_x
             )
         )
     ) * fill_value_1
@@ -56,19 +60,19 @@ def flicker(image1, image2, fill_value_1=0, fill_value_2=0, rate=1, animation_pa
     final_image_2 = np.ones(
         shape=(
             max(
-                image1.shape[0],
-                image2.shape[0]
+                image1.shape[0] + offset_1_y,
+                image2.shape[0] + offset_2_y
             ),
             max(
-                image1.shape[1],
-                image2.shape[1]
+                image1.shape[1] + offset_1_x,
+                image2.shape[1] + offset_2_x
             )
         )
     ) * fill_value_2
 
-    final_image_1[0: image1.shape[0], 0: image1.shape[1]] = image1
+    final_image_1[0 + offset_1_y: image1.shape[0] + offset_1_y, 0 + offset_1_x: image1.shape[1] + offset_1_x] = image1
 
-    final_image_2[0: image2.shape[0], 0: image2.shape[1]] = image2
+    final_image_2[0 + offset_2_y: image2.shape[0] + offset_2_y, 0 + offset_2_x: image2.shape[1] + offset_2_x] = image2
 
     final_image_1 = final_image_1 / np.nanmax(final_image_1)
 
@@ -92,7 +96,8 @@ def flicker(image1, image2, fill_value_1=0, fill_value_2=0, rate=1, animation_pa
     def updatefig(j):
         # set the data in the axesimage object
         im.set_array(imagelist[j])
-        # im.set_clim(0, 1)
+        mn, mx = imagelist[j].min() * 0.9, imagelist[j].max() * 1.1
+        im.set_clim(mn, mx)
         # return the artists set
         return [im]
     # kick off the animation
@@ -154,222 +159,388 @@ def make_correct_shape(image1, image2, fill_value_1, fill_value_2):
 
     return final_image_1, final_image_2
 
-def merge_ca_ha_data():
+
+def align_and_merge_ca_ha_data(
+        datestring, timestring,
+        offset_1_y=0, offset_1_x=0, offset_2_y=0, offset_2_x=0
+):
     # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
     # base_path = Path('/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
     base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
 
-    datestring = '20230603'
-
     level3path = base_path / datestring / 'Level-3'
 
     level4path = base_path / datestring / 'Level-4'
 
-    hmi_image, hmi_header = sunpy.io.read_file(level4path / 'hmi.Ic_720s.20230603_043600_TAI.3.continuum.fits')[1]
-
-    hmi_mag, hmi_mag_header = sunpy.io.read_file(level4path / 'hmi.M_720s.20230603_043600_TAI.3.magnetogram.fits')[1]
-
-    hmi_map = sunpy.map.Map(hmi_image, hmi_header)
-
-    hmi_mag_map = sunpy.map.Map(hmi_mag, hmi_mag_header)
-
-    aia_map = register(hmi_map)
-
-    hmi_mag_aia_map = register(hmi_mag_map)
-
-    timestring = '073616'
-
-    '''
-    For the Date Time 2023-06-03_07:36:16 AM IST
-    approximate center coordinates for HMI submap
-    init_x, init_y = (-397, -244)
-    rotation_angle_wrf_hmi = -15
-    Numpy slice parameters in order of rotated Halpha and Ca II 8662 data and submap data
-    a, b, c, d, e, f, g, h, i, j, k, l = 14, 84, 2, -12, 0, -14, 0, -14, 0, -18, 14, -9
-    '''
-
-    spread = 50
-
-    init_x, init_y = -397, -244
-
-    init = (init_x - spread / 2, init_y - spread / 2)
-
-    final = (init_x + spread / 2, init_y + spread / 2)
-
-    y0 = init[1] * u.arcsec
-
-    x0 = init[0] * u.arcsec
-
-    xf = final[0] * u.arcsec
-
-    yf = final[1] * u.arcsec
-
-    bottom_left1 = astropy.coordinates.SkyCoord(
-        x0, y0, frame=aia_map.coordinate_frame
-    )
-
-    top_right1 = astropy.coordinates.SkyCoord(
-        xf, yf, frame=aia_map.coordinate_frame
-    )
-
-    submap = aia_map.submap(bottom_left=bottom_left1, top_right=top_right1)
-
-    mag_submap = hmi_mag_aia_map.submap(bottom_left=bottom_left1, top_right=top_right1)
-
-    rotation_angle_wrf_hmi = -15
-
-    a, b, c, d, e, f, g, h, i, j, k, l = 14, 84, 2, 84, 0, 84, 2, 84, 0, 0, 14, 0
-
     file1 = h5py.File(level3path / 'Halpha_{}_{}_stic_profiles.nc'.format(datestring, timestring), 'r')
+
     file2 = h5py.File(level3path / 'CaII8662_{}_{}_stic_profiles.nc'.format(datestring, timestring), 'r')
 
-    falc_output = h5py.File(level4path / 'falc_output_mu_0p87.nc', 'r')
-
-    vec_rotate = np.vectorize(rotate, signature='(m,n),(),()->(p,q)')
-
-    fill_values_1 = np.median(file1['profiles'][()], axis=(1, 2))
-    fill_values_2 = np.median(file2['profiles'][()], axis=(1, 2))
-    file_1_profiles_rotated_data = np.transpose(
-        vec_rotate(
-            np.transpose(
-                file1['profiles'][()],
-                axes=(0, 3, 4, 2, 1)
-            ),
-            rotation_angle_wrf_hmi,
-            fill_values_1
-        ),
-        axes=(0, 4, 3, 1, 2)
-    )[:, c:d, a:b]
-
-    file_2_profiles_rotated_data = np.transpose(
-        vec_rotate(
-            np.transpose(
-                file2['profiles'][()],
-                axes=(0, 3, 4, 2, 1)
-            ),
-            rotation_angle_wrf_hmi,
-            fill_values_2
-        ),
-        axes=(0, 4, 3, 1, 2)
-    )[:, g:h, e:f]
-
-    aa, bb = make_correct_shape(
-        np.transpose(
-            file_1_profiles_rotated_data,
-            axes=(0, 3, 4, 2, 1)
-        ),
-        np.transpose(
-            file_2_profiles_rotated_data,
-            axes=(0, 3, 4, 2, 1)
-        ),
-        fill_values_1,
-        fill_values_2
+    nx = max(
+        file1['profiles'].shape[1] + offset_1_y,
+        file2['profiles'].shape[1] + offset_2_y
     )
 
-    sc_file_1_profiles_rotated_data = np.transpose(
-        aa,
-        axes=(0, 3, 4, 1, 2)
+    ny = max(
+        file1['profiles'].shape[2] + offset_1_x,
+        file2['profiles'].shape[2] + offset_2_x
     )
 
-    sc_file_2_profiles_rotated_data = np.transpose(
-        bb,
-        axes=(0, 3, 4, 1, 2)
+    ha = sp.profile(
+        nx=nx, ny=ny, ns=4,
+        nw=file1['wav'].shape[0]
     )
-
-    # i=0, j=-18, k=14, l=-9
-    bl = submap.pixel_to_world(k * u.pixel, i * u.pixel)
-
-    tr = submap.pixel_to_world((submap.data.shape[1] - np.abs(l) - 1) * u.pixel, (submap.data.shape[1] - np.abs(j) - 1) * u.pixel)
-
-    sm = submap.submap(bottom_left=bl, top_right=tr)
-
-    mag_sm = mag_submap.submap(bottom_left=bl, top_right=tr)
-
-    sunpy.io.write_file(
-        str(
-                level4path / 'HMI_Reference_Image_{}_{}.fits'.format(
-                datestring, timestring
-            ),
-        ),
-        sm.data,
-        sm.meta,
-        overwrite=True
+    ca = sp.profile(
+        nx=nx, ny=ny, ns=4,
+        nw=file2['wav'].shape[0]
     )
-
-    sunpy.io.write_file(
-        str(
-            level4path / 'HMI_Reference_Magnetogram_{}_{}.fits'.format(
-                datestring, timestring
-            ),
-        ),
-        mag_sm.data,
-        mag_sm.meta,
-        overwrite=True
-    )
-
-    flicker(sc_file_1_profiles_rotated_data[0, :, :, 32, 0], sc_file_2_profiles_rotated_data[0, :, :, 32, 0])
-    flicker(sc_file_1_profiles_rotated_data[0, :, :, 32, 0], sm.data)
-
-    a, b, c = np.unravel_index(np.argmax(sc_file_1_profiles_rotated_data[0, :, :, :, 0]), (sc_file_1_profiles_rotated_data.shape[1], sc_file_1_profiles_rotated_data.shape[2], sc_file_1_profiles_rotated_data.shape[3]))
-    medprof_halpha = sc_file_1_profiles_rotated_data[0, a, b, :, 0]
-
-    a, b, c = np.unravel_index(np.argmax(sc_file_2_profiles_rotated_data[0, :, :, :, 0]), (sc_file_2_profiles_rotated_data.shape[1], sc_file_2_profiles_rotated_data.shape[2], sc_file_2_profiles_rotated_data.shape[3]))
-    medprof_ca = sc_file_2_profiles_rotated_data[0, a, b, :, 0]
-
-    ind_halpha = np.where(medprof_halpha != 0)[0][0]
-    ind_ca = np.where(medprof_ca != 0)[0][0]
-
-    ind_synth_halpha = np.argmin(np.abs(falc_output['wav'][()] - file1['wav'][ind_halpha]))
-    ind_synth_ca = np.argmin(np.abs(falc_output['wav'][()] - file1['wav'][ind_ca]))
-
-    stic_halpha_fac = falc_output['profiles'][0, 0, 0, ind_synth_halpha, 0] / medprof_halpha[ind_halpha]
-    stic_ca_fac = falc_output['profiles'][0, 0, 0, ind_synth_ca, 0] / medprof_ca[ind_ca]
-
-    ha = sp.profile(nx=sc_file_1_profiles_rotated_data.shape[2], ny=sc_file_1_profiles_rotated_data.shape[1], ns=4, nw=file1['wav'].shape[0])
-    ca = sp.profile(nx=sc_file_2_profiles_rotated_data.shape[2], ny=sc_file_2_profiles_rotated_data.shape[1], ns=4, nw=file2['wav'].shape[0])
 
     ha.wav[:] = file1['wav'][()]
-
-    ha.dat[0, :, :, :, :] = sc_file_1_profiles_rotated_data * stic_halpha_fac
 
     ha.weights = file1['weights'][()]
 
     ca.wav[:] = file2['wav'][()]
 
-    ca.dat[0, :, :, :, :] = sc_file_2_profiles_rotated_data * stic_ca_fac
-
     ca.weights = file2['weights'][()]
 
-    all_profiles = ca + ha
+    d1 = file1['profiles'][0]
+
+    d2 = file2['profiles'][0]
+
+    fill_value_1 = np.median(d1, axis=(0, 1))
+
+    fill_value_2 = np.median(d2, axis=(0, 1))
+
+    ha.dat[0] = fill_value_1[np.newaxis, np.newaxis, :, :]
+
+    ca.dat[0] = fill_value_2[np.newaxis, np.newaxis, :, :]
+
+    ha.dat[0, 0 + offset_1_x: d1.shape[1] + offset_1_x, 0 + offset_1_y: d1.shape[0] + offset_1_y] = np.transpose(
+        d1,
+        axes=(1, 0, 2, 3)
+    )
+
+    ca.dat[0, 0 + offset_2_x: d2.shape[1] + offset_2_x, 0 + offset_2_y: d2.shape[0] + offset_2_y] = np.transpose(
+        d2,
+        axes=(1, 0, 2, 3)
+    )
+
+    all_profiles = ha + ca
 
     all_profiles.write(
         level4path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc'.format(datestring, timestring)
     )
 
-    rho_p = np.sqrt(init_x ** 2 + init_y ** 2)
+    residual_1, header = sunpy.io.read_file(level3path / 'residuals_{}_DETECTOR_1.fits'.format(timestring))[0]
 
-    mu = np.sqrt(1 - np.square(rho_p / hmi_map.rsun_obs.value))
+    residual_2_file = level3path / 'residuals_{}_DETECTOR_3.fits'.format(timestring)
 
-def run_flicker():
-    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+    if not residual_2_file.exists():
+        residual_2_file = level3path / 'residuals_{}_DETECTOR_2.fits'.format(timestring)
+
+    residual_2, _ = sunpy.io.read_file(residual_2_file)[0]
+
+    new_residual = np.zeros(
+        (
+            4,
+            ny,
+            nx,
+            residual_1.shape[3] + residual_2.shape[3]
+        ),
+        dtype=np.float64
+    )
+
+    new_residual[:, 0 + offset_1_x: d1.shape[1] + offset_1_x, 0 + offset_1_y: d1.shape[0] + offset_1_y, 0:residual_1.shape[3]] = np.transpose(
+        residual_1,
+        axes=(0, 2, 1, 3)
+    )
+
+    new_residual[:, 0 + offset_2_x: d2.shape[1] + offset_2_x, 0 + offset_2_y: d2.shape[0] + offset_2_y, residual_1.shape[3]: residual_1.shape[3] + residual_2.shape[3]] = np.transpose(
+        residual_2,
+        axes=(0, 2, 1, 3)
+    )
+
+    sunpy.io.write_file(level4path / 'aligned_residual_Ca_Ha_{}_{}.fits'.format(datestring, timestring), new_residual, header, overwrite=True)
+
+
+# def defunct_merge_ca_ha_data():
+#     # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+#
+#     # base_path = Path('/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+#
+#     base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
+#
+#     datestring = '20230603'
+#
+#     level3path = base_path / datestring / 'Level-3'
+#
+#     level4path = base_path / datestring / 'Level-4'
+#
+#     hmi_image, hmi_header = sunpy.io.read_file(level4path / 'hmi.Ic_720s.20230603_043600_TAI.3.continuum.fits')[1]
+#
+#     hmi_mag, hmi_mag_header = sunpy.io.read_file(level4path / 'hmi.M_720s.20230603_043600_TAI.3.magnetogram.fits')[1]
+#
+#     hmi_map = sunpy.map.Map(hmi_image, hmi_header)
+#
+#     hmi_mag_map = sunpy.map.Map(hmi_mag, hmi_mag_header)
+#
+#     aia_map = register(hmi_map)
+#
+#     hmi_mag_aia_map = register(hmi_mag_map)
+#
+#     timestring = '073616'
+#
+#     '''
+#     For the Date Time 2023-06-03_07:36:16 AM IST
+#     approximate center coordinates for HMI submap
+#     init_x, init_y = (-397, -244)
+#     rotation_angle_wrf_hmi = -15
+#     Numpy slice parameters in order of rotated Halpha and Ca II 8662 data and submap data
+#     a, b, c, d, e, f, g, h, i, j, k, l = 14, 84, 2, -12, 0, -14, 0, -14, 0, -18, 14, -9
+#     '''
+#
+#     spread = 50
+#
+#     init_x, init_y = -397, -244
+#
+#     init = (init_x - spread / 2, init_y - spread / 2)
+#
+#     final = (init_x + spread / 2, init_y + spread / 2)
+#
+#     y0 = init[1] * u.arcsec
+#
+#     x0 = init[0] * u.arcsec
+#
+#     xf = final[0] * u.arcsec
+#
+#     yf = final[1] * u.arcsec
+#
+#     bottom_left1 = astropy.coordinates.SkyCoord(
+#         x0, y0, frame=aia_map.coordinate_frame
+#     )
+#
+#     top_right1 = astropy.coordinates.SkyCoord(
+#         xf, yf, frame=aia_map.coordinate_frame
+#     )
+#
+#     submap = aia_map.submap(bottom_left=bottom_left1, top_right=top_right1)
+#
+#     mag_submap = hmi_mag_aia_map.submap(bottom_left=bottom_left1, top_right=top_right1)
+#
+#     rotation_angle_wrf_hmi = -15
+#
+#     a, b, c, d, e, f, g, h, i, j, k, l = 14, 84, 2, 84, 0, 84, 2, 84, 0, 0, 14, 0
+#
+#     file1 = h5py.File(level3path / 'Halpha_{}_{}_stic_profiles.nc'.format(datestring, timestring), 'r')
+#     file2 = h5py.File(level3path / 'CaII8662_{}_{}_stic_profiles.nc'.format(datestring, timestring), 'r')
+#
+#     falc_output = h5py.File(level4path / 'falc_output_mu_0p87.nc', 'r')
+#
+#     vec_rotate = np.vectorize(rotate, signature='(m,n),(),()->(p,q)')
+#
+#     fill_values_1 = np.median(file1['profiles'][()], axis=(1, 2))
+#     fill_values_2 = np.median(file2['profiles'][()], axis=(1, 2))
+#     file_1_profiles_rotated_data = np.transpose(
+#         vec_rotate(
+#             np.transpose(
+#                 file1['profiles'][()],
+#                 axes=(0, 3, 4, 2, 1)
+#             ),
+#             rotation_angle_wrf_hmi,
+#             fill_values_1
+#         ),
+#         axes=(0, 4, 3, 1, 2)
+#     )[:, c:d, a:b]
+#
+#     file_2_profiles_rotated_data = np.transpose(
+#         vec_rotate(
+#             np.transpose(
+#                 file2['profiles'][()],
+#                 axes=(0, 3, 4, 2, 1)
+#             ),
+#             rotation_angle_wrf_hmi,
+#             fill_values_2
+#         ),
+#         axes=(0, 4, 3, 1, 2)
+#     )[:, g:h, e:f]
+#
+#     aa, bb = make_correct_shape(
+#         np.transpose(
+#             file_1_profiles_rotated_data,
+#             axes=(0, 3, 4, 2, 1)
+#         ),
+#         np.transpose(
+#             file_2_profiles_rotated_data,
+#             axes=(0, 3, 4, 2, 1)
+#         ),
+#         fill_values_1,
+#         fill_values_2
+#     )
+#
+#     sc_file_1_profiles_rotated_data = np.transpose(
+#         aa,
+#         axes=(0, 3, 4, 1, 2)
+#     )
+#
+#     sc_file_2_profiles_rotated_data = np.transpose(
+#         bb,
+#         axes=(0, 3, 4, 1, 2)
+#     )
+#
+#     # i=0, j=-18, k=14, l=-9
+#     bl = submap.pixel_to_world(k * u.pixel, i * u.pixel)
+#
+#     tr = submap.pixel_to_world((submap.data.shape[1] - np.abs(l) - 1) * u.pixel, (submap.data.shape[1] - np.abs(j) - 1) * u.pixel)
+#
+#     sm = submap.submap(bottom_left=bl, top_right=tr)
+#
+#     mag_sm = mag_submap.submap(bottom_left=bl, top_right=tr)
+#
+#     sunpy.io.write_file(
+#         str(
+#                 level4path / 'HMI_Reference_Image_{}_{}.fits'.format(
+#                 datestring, timestring
+#             ),
+#         ),
+#         sm.data,
+#         sm.meta,
+#         overwrite=True
+#     )
+#
+#     sunpy.io.write_file(
+#         str(
+#             level4path / 'HMI_Reference_Magnetogram_{}_{}.fits'.format(
+#                 datestring, timestring
+#             ),
+#         ),
+#         mag_sm.data,
+#         mag_sm.meta,
+#         overwrite=True
+#     )
+#
+#     flicker(sc_file_1_profiles_rotated_data[0, :, :, 32, 0], sc_file_2_profiles_rotated_data[0, :, :, 32, 0])
+#     flicker(sc_file_1_profiles_rotated_data[0, :, :, 32, 0], sm.data)
+#
+#     a, b, c = np.unravel_index(np.argmax(sc_file_1_profiles_rotated_data[0, :, :, :, 0]), (sc_file_1_profiles_rotated_data.shape[1], sc_file_1_profiles_rotated_data.shape[2], sc_file_1_profiles_rotated_data.shape[3]))
+#     medprof_halpha = sc_file_1_profiles_rotated_data[0, a, b, :, 0]
+#
+#     a, b, c = np.unravel_index(np.argmax(sc_file_2_profiles_rotated_data[0, :, :, :, 0]), (sc_file_2_profiles_rotated_data.shape[1], sc_file_2_profiles_rotated_data.shape[2], sc_file_2_profiles_rotated_data.shape[3]))
+#     medprof_ca = sc_file_2_profiles_rotated_data[0, a, b, :, 0]
+#
+#     ind_halpha = np.where(medprof_halpha != 0)[0][0]
+#     ind_ca = np.where(medprof_ca != 0)[0][0]
+#
+#     ind_synth_halpha = np.argmin(np.abs(falc_output['wav'][()] - file1['wav'][ind_halpha]))
+#     ind_synth_ca = np.argmin(np.abs(falc_output['wav'][()] - file1['wav'][ind_ca]))
+#
+#     stic_halpha_fac = falc_output['profiles'][0, 0, 0, ind_synth_halpha, 0] / medprof_halpha[ind_halpha]
+#     stic_ca_fac = falc_output['profiles'][0, 0, 0, ind_synth_ca, 0] / medprof_ca[ind_ca]
+#
+#     ha = sp.profile(nx=sc_file_1_profiles_rotated_data.shape[2], ny=sc_file_1_profiles_rotated_data.shape[1], ns=4, nw=file1['wav'].shape[0])
+#     ca = sp.profile(nx=sc_file_2_profiles_rotated_data.shape[2], ny=sc_file_2_profiles_rotated_data.shape[1], ns=4, nw=file2['wav'].shape[0])
+#
+#     ha.wav[:] = file1['wav'][()]
+#
+#     ha.dat[0, :, :, :, :] = sc_file_1_profiles_rotated_data * stic_halpha_fac
+#
+#     ha.weights = file1['weights'][()]
+#
+#     ca.wav[:] = file2['wav'][()]
+#
+#     ca.dat[0, :, :, :, :] = sc_file_2_profiles_rotated_data * stic_ca_fac
+#
+#     ca.weights = file2['weights'][()]
+#
+#     all_profiles = ca + ha
+#
+#     all_profiles.write(
+#         level4path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc'.format(datestring, timestring)
+#     )
+#
+#     rho_p = np.sqrt(init_x ** 2 + init_y ** 2)
+#
+#     mu = np.sqrt(1 - np.square(rho_p / hmi_map.rsun_obs.value))
+
+def run_flicker(datestring, timestring, offset_1_y=0, offset_1_x=0, offset_2_y=0, offset_2_x=0, create_files=False):
+    # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
     # base_path = Path('/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
-    datestring = '20230603'
+    base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
 
     level3path = base_path / datestring / 'Level-3'
     level4path = base_path / datestring / 'Level-4'
 
-    file1 = h5py.File(level3path / 'Halpha_20230603_073616_stic_profiles.nc', 'r')
-    file2 = h5py.File(level3path / 'CaII8662_20230603_073616_stic_profiles.nc', 'r')
-    hmi_image, hmi_header = sunpy.io.read_file(level4path / 'hmi.Ic_720s.20230603_043600_TAI.3.continuum.fits')[1]
+
+    file1 = h5py.File(level3path / 'Halpha_{}_{}_stic_profiles.nc'.format(datestring, timestring), 'r')
+    file2 = h5py.File(level3path / 'CaII8662_{}_{}_stic_profiles.nc'.format(datestring, timestring), 'r')
+    # hmi_image, hmi_header = sunpy.io.read_file(level4path / 'hmi.Ic_720s.20230603_043600_TAI.3.continuum.fits')[1]
+    # hmi_map = sunpy.map.Map(hmi_image, hmi_header)
+    # aia_map = register(hmi_map)
+    # spread = 50
+    #
+    # init_x, init_y = -397, -244
+    #
+    # init = (init_x - spread / 2, init_y - spread / 2)
+    #
+    # final = (init_x + spread / 2, init_y + spread / 2)
+    #
+    # y0 = init[1] * u.arcsec
+    #
+    # x0 = init[0] * u.arcsec
+    #
+    # xf = final[0] * u.arcsec
+    #
+    # yf = final[1] * u.arcsec
+    #
+    # bottom_left1 = astropy.coordinates.SkyCoord(
+    #     x0, y0, frame=aia_map.coordinate_frame
+    # )
+    #
+    # top_right1 = astropy.coordinates.SkyCoord(
+    #     xf, yf, frame=aia_map.coordinate_frame
+    # )
+    #
+    # submap = aia_map.submap(bottom_left=bottom_left1, top_right=top_right1)
+    #
+    # data = submap.data
+
+    fill_value_1 = np.nanmedian(file1['profiles'][0, :, :, 32, 0])
+    fill_value_2 = np.nanmedian(file2['profiles'][0, :, :, 32, 0])
+    # fill_value_3 = np.nanmedian(data)
+
+    if not create_files:
+        flicker(
+            file1['profiles'][0, :, :, 32, 0], file2['profiles'][0, :, :, 32, 0], fill_value_1, fill_value_2,
+            offset_1_y=offset_1_y, offset_1_x=offset_1_x, offset_2_y=offset_2_y, offset_2_x=offset_2_x
+        )
+
+    else:
+        align_and_merge_ca_ha_data(
+            datestring=datestring, timestring=timestring,
+            offset_1_y=offset_1_y, offset_1_x=offset_1_x, offset_2_y=offset_2_y, offset_2_x=offset_2_x
+        )
+
+
+def run_hmi_flicker(datestring, timestring, hmi_cont_file, hmi_mag_file, angle=-13, offset_x=0, offset_y=0):
+    # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+
+    # base_path = Path('/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+
+    base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
+
+    level4path = base_path / datestring / 'Level-4'
+
+    file1 = h5py.File(level4path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc'.format(datestring, timestring), 'r')
+    hmi_image, hmi_header = sunpy.io.read_file(level4path / hmi_cont_file)[1]
     hmi_map = sunpy.map.Map(hmi_image, hmi_header)
     aia_map = register(hmi_map)
-    spread = 50
 
-    init_x, init_y = -397, -244
+    spread = 100
+
+    init_x, init_y = 307, -314
 
     init = (init_x - spread / 2, init_y - spread / 2)
 
@@ -393,40 +564,72 @@ def run_flicker():
 
     submap = aia_map.submap(bottom_left=bottom_left1, top_right=top_right1)
 
-    data = submap.data
+    rotated_submap = submap.rotate(
+        angle=angle * u.deg
+    )
 
-    fill_value_1 = np.nanmedian(file1['profiles'][0, :, :, 32, 0])
-    fill_value_2 = np.nanmedian(file2['profiles'][0, :, :, 32, 0])
-    fill_value_3 = np.nanmedian(data)
+    rotated_data = rotated_submap.data
 
-    final_image_1 = np.ones(
-        shape=(
-            max(
-                file1['profiles'].shape[2],
-                submap.data.shape[0]
-            ),
-            max(
-                file1['profiles'].shape[1],
-                submap.data.shape[1]
-            )
-        )
-    ) * fill_value_1
+    plt.imshow(rotated_data, cmap='gray', origin='lower')
 
-    final_image_1[0: file1['profiles'].shape[2], 0: file1['profiles'].shape[1]] = file1['profiles'][0, :, :, 32, 0].T
+    plt.show()
 
-    rotated_data_1 = scipy.ndimage.rotate(file1['profiles'][0, :, :, 32, 0].T, -15, cval=fill_value_1, reshape=True)
-    rotated_data_2 = scipy.ndimage.rotate(file2['profiles'][0, :, :, 32, 0].T, -15, cval=fill_value_2, reshape=True)
-    rotated_data_1[np.where(np.isnan(rotated_data_1))] = fill_value_1
-    rotated_data_2[np.where(np.isnan(rotated_data_2))] = fill_value_2
+    flicker(
+        file1['profiles'][0, :, :, 32, 0], rotated_data[offset_y:file1['profiles'].shape[1] + offset_y, offset_x:file1['profiles'].shape[2] + offset_x]
+    )
 
-    # flicker(rotated_data_1[14:, 2:], rotated_data_2[:, :], fill_value_1, fill_value_2)
-    flicker(rotated_data_1[5:], data[:, 5:], fill_value_1, fill_value_3)
-    # flicker(rotated_data_1[14:, :-12], rotated_data_2[:, :])
-    # print(file1['profiles'][0, :, 10:, 32, 0].T.shape)
-    # print(data[0:-27, 12:-12].shape)
-    # flicker(file1['profiles'][0, :, 10:, 32, 0].T, data[0:-27, 12:-12])
+    hmi_image_mag, hmi_header_mag = sunpy.io.read_file(level4path / hmi_mag_file)[1]
+    hmi_map_mag = sunpy.map.Map(hmi_image_mag, hmi_header_mag)
+    aia_map_mag = register(hmi_map_mag)
+
+    submap_mag = aia_map_mag.submap(bottom_left=bottom_left1, top_right=top_right1)
+
+    rotated_submap_mag = submap_mag.rotate(
+        angle=angle * u.deg
+    )
+
+    rotated_data_mag = rotated_submap_mag.data
+
+    flicker(
+        file1['profiles'][0, :, :, 32, 0],
+        rotated_data_mag[offset_y:file1['profiles'].shape[1] + offset_y, offset_x:file1['profiles'].shape[2] + offset_x]
+    )
+
+    header = dict()
+
+    header['CDELT2'] = 0.6
+
+    header['CDELT3'] = 0.6
+
+    header['CUNIT2'] = 'arcsec'
+
+    header['CUNIT3'] = 'arcsec'
+
+    header['CTYPE2'] = 'HPLT-TAN'
+
+    header['CTYPE3'] = 'HPLN-TAN'
+
+    header['CNAME2'] = 'HPC lat'
+
+    header['CNAME3'] = 'HPC lon'
+
+    sunpy.io.write_file(level4path / 'HMI_reference_image_{}_{}.fits'.format(datestring, timestring), rotated_data[offset_y:file1['profiles'].shape[1] + offset_y, offset_x:file1['profiles'].shape[2] + offset_x], header, overwrite=True)
+
+    sunpy.io.write_file(level4path / 'HMI_reference_magnetogram_{}_{}.fits'.format(datestring, timestring),
+                        rotated_data_mag[offset_y:file1['profiles'].shape[1] + offset_y,
+                        offset_x:file1['profiles'].shape[2] + offset_x], header, overwrite=True)
 
 
 if __name__ == '__main__':
-    # merge_ca_ha_data()
-    run_flicker()
+    # run_flicker(
+    #     datestring='20230520', timestring='075906',
+    #     offset_1_y=0, offset_1_x=0, offset_2_y=1, offset_2_x=17,
+    #     create_files=False
+    # )
+    run_hmi_flicker(
+        datestring='20230525', timestring='082632',
+        hmi_cont_file='hmi.Ic_720s.20230525_052400_TAI.3.continuum.fits',
+        hmi_mag_file='hmi.M_720s.20230525_052400_TAI.3.magnetogram.fits',
+        angle=-20,
+        offset_x=123, offset_y=65
+    )

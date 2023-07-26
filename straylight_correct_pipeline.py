@@ -2,6 +2,7 @@ import sys
 # sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
 # sys.path.insert(2, '/home/harsh/CourseworkRepo/WFAComparison')
 sys.path.insert(1, '/mnt/f/Harsh/CourseworkRepo/stic/example')
+sys.path.insert(1, 'F:\\Harsh\\CourseworkRepo\\stic\\example')
 import h5py
 import numpy as np
 import sunpy.io
@@ -17,6 +18,7 @@ import subprocess
 
 
 AIA_SAMPLING_ARCSEC = 0.6
+
 
 def resample_data(image, new_shape):
     return sunpy.image.resample.resample(
@@ -46,6 +48,63 @@ def resample_full_data(data, header):
         ),
         axes=(0, 2, 3, 1)
     )
+
+
+def actual_resample_residual_data(data, header):
+    new_shape = (
+        data.shape[1] * header['CDELTY'] / AIA_SAMPLING_ARCSEC,
+        data.shape[2] * header['CDELTX'] / AIA_SAMPLING_ARCSEC,
+    )
+
+    return np.transpose(
+        vec_resample_data(
+            np.transpose(
+                data,
+                axes=(0, 3, 1, 2)
+            ),
+            new_shape
+        ),
+        axes=(0, 2, 3, 1)
+    )
+
+
+def resample_residual_data():
+    datestring_list = ['20230603', '20230601', '20230531', '20230530', '20230529', '20230527', '20230526', '20230525',
+                       '20230522', '20230520', '20230519']
+
+    # base_path = Path(
+    #     '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/'
+    # )
+
+    # base_path = Path(
+    #     '/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes'
+    # )
+
+    base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
+
+    for datestring in datestring_list:
+
+        datepath = base_path / datestring
+
+        level3path = datepath / 'Level-3'
+
+        all_files = datepath.glob('**/*')
+
+        all_residual_files = [file for file in all_files if file.name.startswith('residual') and file.name.endswith('.fits') and 'Level-3' not in str(file)]
+
+        for residual_file in all_residual_files:
+            print(residual_file)
+            data, header = get_raw_data(residual_file)
+
+            resampled_data = actual_resample_residual_data(data, header)
+
+            new_header = deepcopy(header)
+
+            new_header['CDELTX'] = 0.6
+
+            new_header['CDELTY'] = 0.6
+
+            sunpy.io.write_file(level3path / residual_file.name, resampled_data, new_header, overwrite=True)
 
 
 def prep_optimize_func(catalog):
@@ -159,7 +218,7 @@ def generate_stic_input_files(
     f['wav'] = np.zeros_like(kernel)
     f.close()
 
-    region_file = write_path / 'region_{}_{}.txt'.format(wave_name, datestring)
+    region_file = write_path / 'region_{}_{}_{}.txt'.format(wave_name, datestring, timestring)
 
     fr = open(region_file, 'w')
 
@@ -200,19 +259,19 @@ def generate_input_atmos_file():
 def calculate_straylight_from_median_profile(
         medianprofile_path, catalog_file, synth_path,
         write_path, datestring, timestring, wave_indice=None,
-        cont_wave=0, fac_ind_s=None, fac_ind_e=None
+        cont_wave=0, fac_ind_s=None, fac_ind_e=None, timestring_only=None
 ):
 
     median_profile = np.loadtxt(medianprofile_path)
 
-    if len(median_profile.shape) > 1:
-        median_profile = np.median(median_profile, 0)
-        np.savetxt(medianprofile_path, median_profile)
+    # if len(median_profile.shape) > 1:
+    #     median_profile = np.median(median_profile, 0)
+    #     np.savetxt(medianprofile_path, median_profile)
 
     if wave_indice is None:
         wave_indice = [0, median_profile.size]
 
-    median_profile = median_profile[wave_indice[0]:wave_indice[-1]] / median_profile[wave_indice[0]:wave_indice[-1]][cont_wave]
+    # median_profile = median_profile[wave_indice[0]:wave_indice[-1]] / median_profile[wave_indice[0]:wave_indice[-1]][cont_wave]
 
     catalog = np.loadtxt(catalog_file)
 
@@ -299,8 +358,25 @@ def calculate_straylight_from_median_profile(
 
     broadening_km_sec = np.abs(r_fwhm * (wave[1] - wave[0]) * 2.99792458e5 / wavelength)
 
-    f = h5py.File(
-        write_path / 'straylight_{}_estimated_profile_{}.h5'.format(wavelength, datestring), 'w')
+    stray_corrected_median = median_profile * multiplicative_factor
+
+    stray_corrected_median = (stray_corrected_median - (r_straylight * stray_corrected_median[cont_wave])) / (
+                1 - r_straylight)
+
+    fsynth = h5py.File(synth_path, 'r')
+
+    ind_synth = np.argmin(np.abs(fsynth['wav'][()] - wave[cont_wave]))
+
+    stic_cgs_calib_factor = stray_corrected_median[cont_wave] / fsynth['profiles'][0, 0, 0, ind_synth, 0]
+
+    fsynth.close()
+
+    if timestring_only is None:
+        f = h5py.File(
+            write_path / 'straylight_{}_estimated_profile_{}.h5'.format(wavelength, datestring), 'w')
+    else:
+        f = h5py.File(
+            write_path / 'straylight_{}_estimated_profile_{}_timestring_{}.h5'.format(wavelength, datestring, timestring_only), 'w')
 
     f['wave'] = wave
 
@@ -330,11 +406,9 @@ def calculate_straylight_from_median_profile(
 
     f['broadening_in_km_sec'] = broadening_km_sec
 
+    f['stic_cgs_calib_factor'] = stic_cgs_calib_factor
+
     f.close()
-
-    stray_corrected_median = median_profile * multiplicative_factor
-
-    stray_corrected_median = (stray_corrected_median - (r_straylight * stray_corrected_median[cont_wave])) / (1 - r_straylight)
 
     norm_median_stray, norm_atlas, atlas_wave = normalise_profiles(
         stray_corrected_median,
@@ -343,14 +417,6 @@ def calculate_straylight_from_median_profile(
         catalog[:, 0],
         cont_wave=wave[cont_wave]
     )
-
-    fsynth = h5py.File(synth_path, 'r')
-
-    ind_synth = np.argmin(np.abs(fsynth['wav'][()] - wave[cont_wave]))
-
-    stic_cgs_calib_factor = stray_corrected_median[cont_wave] / fsynth['profiles'][0, 0, 0, ind_synth, 0]
-
-    fsynth.close()
 
     plt.close('all')
 
@@ -361,14 +427,17 @@ def calculate_straylight_from_median_profile(
 
     plt.legend()
 
-    plt.savefig(write_path / '{}_{}_median_comparison.pdf'.format(wavelength, datestring), format='pdf', dpi=300)
+    if timestring_only is None:
+        plt.savefig(write_path / '{}_{}_median_comparison.pdf'.format(wavelength, datestring), format='pdf', dpi=300)
+    else:
+        plt.savefig(write_path / '{}_{}_{}_median_comparison.pdf'.format(wavelength, datestring, timestring_only), format='pdf', dpi=300)
 
     plt.show()
 
     return r_fwhm, r_sigma, r_straylight, multiplicative_factor, wave, wavelength, broadening_km_sec, stic_cgs_calib_factor, norm_median_stray
 
 
-def generate_stic_input_files_caller(datestring, cont_wave_ha=0, fac_ind_s_ha=None, fac_ind_e_ha=None, mode=None):
+def generate_stic_input_files_caller(datestring, cont_wave_ha=0, fac_ind_s_ha=None, fac_ind_e_ha=None, mode=None, timestring_only=None):
     # base_path = Path(
     #     '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/'
     # )
@@ -403,15 +472,21 @@ def generate_stic_input_files_caller(datestring, cont_wave_ha=0, fac_ind_s_ha=No
 
     level3path.mkdir(parents=True, exist_ok=True)
 
-    process = subprocess.Popen(
-        'rm -rf *',
-        cwd=str(level3path),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        shell=True
-    )
+    delete_files = True
 
-    stdout, stderr = process.communicate()
+    if timestring_only is not None or mode is not None:
+        delete_files = False
+
+    if delete_files:
+        process = subprocess.Popen(
+            'rm -rf *',
+            cwd=str(level3path),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=True
+        )
+
+        stdout, stderr = process.communicate()
 
     all_files = level2path.glob('**/*')
 
@@ -426,13 +501,22 @@ def generate_stic_input_files_caller(datestring, cont_wave_ha=0, fac_ind_s_ha=No
         if name_split[-2] == 'halpha':
             if mode is not None and mode == 'ca':
                 continue
+
             timestring = name_split[-1].split('.')[0]
+
+            if timestring_only is not None and timestring != timestring_only:
+                continue
 
             wave_indice = None
 
+            medprofpath = datepath / 'MedianProfile_counts_DETECTOR_1.txt'
+
+            if timestring == '092458':
+                medprofpath = datepath / 'MedianProfile_counts_DETECTOR_1_more_counts.txt'
+
             if r_fwhm_ha is None:
                 r_fwhm_ha, r_sigma_ha, r_straylight_ha, multiplicative_factor_ha, wave_ha, wavelength_ha, broadening_km_sec_ha, stic_cgs_calib_factor_ha, norm_median_stray_ha = calculate_straylight_from_median_profile(
-                    datepath / 'MedianProfile_DETECTOR_1.txt',
+                    medprofpath,
                     catalog_file_6563,
                     synth_file_6563,
                     level3path,
@@ -441,7 +525,8 @@ def generate_stic_input_files_caller(datestring, cont_wave_ha=0, fac_ind_s_ha=No
                     wave_indice=wave_indice,
                     cont_wave=cont_wave_ha,
                     fac_ind_s=fac_ind_s_ha,
-                    fac_ind_e=fac_ind_e_ha
+                    fac_ind_e=fac_ind_e_ha,
+                    timestring_only=timestring_only
                 )
 
             generate_stic_input_files(fits_file, r_fwhm_ha, r_sigma_ha, r_straylight_ha, multiplicative_factor_ha, wave_ha, 'Halpha',
@@ -451,11 +536,21 @@ def generate_stic_input_files_caller(datestring, cont_wave_ha=0, fac_ind_s_ha=No
             if mode is not None and mode == 'ha':
                 continue
             wave_indice = None
-            medprofpath = datepath / 'MedianProfile_DETECTOR_3.txt'
-            if not medprofpath.exists():
-                medprofpath = datepath / 'MedianProfile_DETECTOR_2.txt'
 
             timestring = name_split[-1].split('.')[0]
+
+            if timestring_only is not None and timestring != timestring_only:
+                continue
+
+            medprofpath = datepath / 'MedianProfile_counts_DETECTOR_3.txt'
+
+            if not medprofpath.exists():
+                medprofpath = datepath / 'MedianProfile_counts_DETECTOR_2.txt'
+
+            if timestring == '092458':
+                medprofpath = datepath / 'MedianProfile_counts_DETECTOR_3_more_counts.txt'
+                if not medprofpath.exists():
+                    medprofpath = datepath / 'MedianProfile_counts_DETECTOR_2_more_counts.txt'
 
             if r_fwhm_ca is None:
                 r_fwhm_ca, r_sigma_ca, r_straylight_ca, multiplicative_factor_ca, wave_ca, wavelength_ca, broadening_km_sec_ca, stic_cgs_calib_factor_ca, norm_median_stray_ca = calculate_straylight_from_median_profile(
@@ -465,7 +560,8 @@ def generate_stic_input_files_caller(datestring, cont_wave_ha=0, fac_ind_s_ha=No
                     level3path,
                     datestring,
                     timestring,
-                    wave_indice
+                    wave_indice,
+                    timestring_only=timestring_only
                 )
 
             generate_stic_input_files(fits_file, r_fwhm_ca, r_sigma_ca, r_straylight_ca, multiplicative_factor_ca, wave_ca, 'CaII8662',
@@ -475,30 +571,36 @@ def convert_dat_to_png(base_path):
     if isinstance(base_path, str):
         base_path = Path(base_path)
 
-    all_files = base_path.glob('**/*')
+    all_folders = base_path.glob('**/*')
 
-    all_dat_files = [file for file in all_files if file.name.startswith('Curr') and file.name.endswith('.dat')]
+    for folder in all_folders:
+        all_files = folder.glob('**/*')
 
-    for dat_file in all_dat_files:
-        image = np.fromfile(dat_file, dtype=np.float64).reshape(256, 256)
-        plt.close('all')
-        plt.imshow(image, cmap='gray', origin='lower')
-        plt.savefig(base_path / '{}.pdf'.format(dat_file.name), format='pdf', dpi=300)
+        all_dat_files = [file for file in all_files if file.name.startswith('Curr') and file.name.endswith('.dat')]
+
+        for dat_file in all_dat_files:
+            image = np.fromfile(dat_file, dtype=np.float64).reshape(256, 256)
+            plt.close('all')
+            plt.imshow(image, cmap='gray', origin='lower')
+            plt.savefig(folder / '{}.pdf'.format(dat_file.name), format='pdf', dpi=300)
 
 
 if __name__ == '__main__':
-    datestring = '20230530'
-    cont_wave_ha = 0
-    fac_ind_s_ha = None
-    fac_ind_e_ha = None
-    generate_stic_input_files_caller(
-        datestring,
-        cont_wave_ha,
-        fac_ind_s_ha,
-        fac_ind_e_ha,
-        mode=None
-    )
+    # datestring = '20230603'
+    # cont_wave_ha = -1
+    # fac_ind_s_ha = 30
+    # fac_ind_e_ha = -30
+    # generate_stic_input_files_caller(
+    #     datestring,
+    #     cont_wave_ha,
+    #     fac_ind_s_ha,
+    #     fac_ind_e_ha,
+    #     mode='ca',
+    #     timestring_only='092458'
+    # )
 
     # merge_ca_ha_data()
 
-    # convert_dat_to_png('/mnt/f/Harsh/CourseworkRepo/New folder/20230603_092238')
+    # convert_dat_to_png('/mnt/f/Harsh/CourseworkRepo/Tip Tilt Data/Closed Loop/')
+
+    resample_residual_data()

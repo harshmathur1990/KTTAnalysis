@@ -43,14 +43,19 @@ def adjust_headers(datepath):
 
         header['CNAME3'] = 'HPC lon'
 
+        data[1:] = data[1:] * data[0:1]
+
+        print('{} - {} - {}'.format(datepath.name, data[3].min(), data[3].max()))
+
         sunpy.io.write_file(fits_file, data, header, overwrite=True)
 
 
 if __name__ == '__main__':
-    base_path = Path('/mnt/f/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+    base_path = Path('/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
-    datestring = '20230519'
+    datestring_list = ['20230603', '20230601', '20230530', '20230529', '20230527', '20230526', '20230525', '20230520', '20230519']
 
-    datepath = base_path / datestring
+    for datestring in datestring_list:
+        datepath = base_path / datestring
 
-    adjust_headers(datepath)
+        adjust_headers(datepath)
