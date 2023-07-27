@@ -90,16 +90,23 @@ def prepare_calculate_blos(
     lambda_range_max,
     g_eff,
     transition_skip_list=None,
-    errors=False
+    errors=False,
+    bin_factor=None
 ):
     def actual_calculate_blos(i, j):
         i = int(i)
         j = int(j)
-        stokes_I, stokes_V = obs[0, i, j, :, 0], obs[0, i, j, :, 3]
+        stokes_I, stokes_V = obs[i, j, :, 0], obs[i, j, :, 3]
+        wave = wavelength_arr
+        if bin_factor is not None:
+            stokes_I = np.mean(stokes_I.reshape(stokes_I.shape[0] // bin_factor, bin_factor), 1)
+            stokes_V = np.mean(stokes_V.reshape(stokes_V.shape[0] // bin_factor, bin_factor), 1)
+            wave = np.mean(wave.reshape(wave.shape[0] // bin_factor, bin_factor), 1)
+
         return calculate_b_los(
             stokes_I,
             stokes_V,
-            wavelength_arr,
+            wave,
             lambda0,
             lambda_range_min,
             lambda_range_max,
