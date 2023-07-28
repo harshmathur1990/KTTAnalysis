@@ -9,7 +9,9 @@ def calculate_magnetic_field(datestring):
 
     # base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
 
-    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+    # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+
+    base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
 
     datepath = base_path / datestring
 
@@ -17,34 +19,39 @@ def calculate_magnetic_field(datestring):
 
     all_files = datepath.glob('**/*')
 
-    all_mag_files = [file for file in all_files if file.name.startswith('aligned') and file.name.endswith('pca.nc')]
+    all_mag_files = [file for file in all_files if file.name.startswith('aligned') and file.name.endswith('straylight_corrected.nc')]
 
-    # for a_mag_file in all_mag_files:
-    #     fcaha = h5py.File(a_mag_file, 'r')
-    #
-    #     ind = np.where(fcaha['profiles'][0, 0, 0, :, 0] != 0)[0]
-    #
-    #     ind = ind[800:]
-    #
-    #     ca_center_wave = 8662.14 / 10
-    #
-    #     actual_calculate_blos = prepare_calculate_blos(
-    #         fcaha['profiles'][0][:, :, ind],
-    #         fcaha['wav'][ind] / 10,
-    #         ca_center_wave,
-    #         8661.56 / 10,
-    #         (8661.56 + 0.3) / 10,
-    #         0.8,
-    #         transition_skip_list=None,
-    #         bin_factor=8
-    #         # transition_skip_list=transition_skip_list
-    #     )
-    #
-    #     vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
-    #
-    #     magca = np.fromfunction(vec_actual_calculate_blos, shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
-    #
-    #     sunpy.io.write_file(level4path / '{}_mag_ca.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
+    for a_mag_file in all_mag_files:
+        fcaha = h5py.File(a_mag_file, 'r')
+
+        ind = np.where(fcaha['profiles'][0, 0, 0, :, 0] != 0)[0]
+
+        ind = ind[800:]
+
+        ca_center_wave = 8662.14 / 10
+
+        transition_skip_list = np.array(
+            [
+                [8661.958, 0.25]
+            ]
+        ) / 10
+
+        actual_calculate_blos = prepare_calculate_blos(
+            fcaha['profiles'][0][:, :, ind],
+            fcaha['wav'][ind] / 10,
+            ca_center_wave,
+            8661.5 / 10,
+            8661.8 / 10,
+            0.8,
+            transition_skip_list=None,
+            bin_factor=8
+        )
+
+        vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
+
+        magca = np.fromfunction(vec_actual_calculate_blos, shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
+
+        sunpy.io.write_file(level4path / '{}_mag_ca.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
 
     for a_mag_file in all_mag_files:
         fcaha = h5py.File(a_mag_file, 'r')
@@ -73,7 +80,7 @@ def calculate_magnetic_field(datestring):
             ha_center_wave + wave_range,
             1.048,
             transition_skip_list=transition_skip_list,
-            bin_factor=16
+            bin_factor=8
         )
 
         vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
@@ -92,7 +99,7 @@ def calculate_magnetic_field(datestring):
             ha_center_wave + wave_range,
             1.048,
             transition_skip_list=transition_skip_list,
-            bin_factor=16
+            bin_factor=8
         )
 
         vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
@@ -105,4 +112,4 @@ def calculate_magnetic_field(datestring):
 
 
 if __name__ == '__main__':
-    calculate_magnetic_field('20230603')
+    calculate_magnetic_field('20230601')
