@@ -235,14 +235,12 @@ def create_fov_plots(datestring, timestring, x1, y1, x2, y2, ticks, limit, point
 
     ticks = [0, 5, 10, 15, 20, 25]
 
-    ml = MultipleLocator(1)
-
     for i in range(2):
         for j in range(4):
             axs[i][j].set_xticks(ticks, [])
             axs[i][j].set_yticks(ticks, [])
-            axs[i][j].xaxis.set_minor_locator(ml)
-            axs[i][j].yaxis.set_minor_locator(ml)
+            axs[i][j].xaxis.set_minor_locator(MultipleLocator(1))
+            axs[i][j].yaxis.set_minor_locator(MultipleLocator(1))
 
     axs[0][0].set_yticks(ticks, ticks)
     axs[1][0].set_yticks(ticks, ticks)
@@ -400,8 +398,8 @@ def make_profile_plots(datestring, timestring, points):
         axs[indice][1].yaxis.set_major_formatter(FormatStrFormatter('%d'))
         axs[indice][3].yaxis.set_major_formatter(FormatStrFormatter('%d'))
 
-        max_svh = np.max(np.abs(svh)) * 1.1
-        max_svca = np.max(np.abs(svca)) * 1.1
+        max_svh = np.amax(np.abs(svh)) * 1.1
+        max_svca = np.amax(np.abs(svca)) * 1.1
 
         axs[indice][1].set_ylim(-max_svh, max_svh)
         axs[indice][3].set_ylim(-max_svca, max_svca)
@@ -450,6 +448,467 @@ def make_profile_plots(datestring, timestring, points):
     plt.subplots_adjust(left=0.05, right=1, bottom=0.17, top=0.9, wspace=0.3, hspace=0.13)
 
     plt.savefig(write_path / 'Profile_plots_{}_{}.pdf'.format(datestring, timestring))
+
+    # plt.show()
+
+
+def make_halpha_magnetic_field_plots(datestring, timestring, x1, y1, x2, y2, ticks, limit, points):
+
+    # write_path = Path('/home/harsh/CourseworkRepo/KTTAnalysis/figures')
+
+    write_path = Path('F:\\Harsh\\CourseworkRepo\\KTTAnalysis\\figures')
+
+    # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+
+    base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
+
+    datepath = base_path / datestring
+
+    level4path = datepath / 'Level-4'
+
+    mag_ha_full_line, _ = sunpy.io.read_file(
+        level4path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc_pca.nc_spatial_straylight_corrected.nc_mag_ha_full_line.fits'.format(
+            datestring, timestring
+        )
+    )[0]
+
+    mag_ha_core, _ = sunpy.io.read_file(
+        level4path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc_pca.nc_spatial_straylight_corrected.nc_mag_ha_core.fits'.format(
+            datestring, timestring
+        )
+    )[0]
+
+    extent = [0, 0.6 * 50, 0, 0.6 * 50]
+
+    colors = ["blue", "green", "white", "darkgoldenrod", "darkred"]
+
+    colors.reverse()
+
+    cmap1 = LinearSegmentedColormap.from_list("mycmap", colors)
+
+    font = {'size': 8}
+
+    matplotlib.rc('font', **font)
+
+    fig, axs = plt.subplots(1, 2, figsize=(3.5, 1.75))
+
+    im0 = axs[0].imshow(mag_ha_full_line[y1:y2, x1:x2], cmap=cmap1, origin='lower', vmin=-limit, vmax=limit, extent=extent)
+
+    axs[1].imshow(mag_ha_core[y1:y2, x1:x2], cmap=cmap1, origin='lower', vmin=-limit, vmax=limit, extent=extent)
+
+    axins0 = inset_axes(
+        axs[0],
+        width="100%",
+        height="100%",
+        loc="upper right",
+        bbox_to_anchor=(0.05, 0.05, 0.9, 0.05),
+        bbox_transform=axs[0].transAxes,
+        borderpad=0,
+    )
+
+    cbar = fig.colorbar(im0, cax=axins0, ticks=ticks, orientation='horizontal')
+
+    tick_values = np.array(ticks) / 100
+
+    tick_values = tick_values.astype(np.int64)
+
+    tick_values = [str(tick) for tick in tick_values]
+
+    cbar.ax.set_xticklabels(tick_values)
+
+    cbar.ax.xaxis.set_ticks_position('top')
+
+    pcolors = ['brown', 'navy']
+    for indice, point in enumerate(points):
+        for i in range(2):
+                axs[i].scatter((point[0] - x1) * 0.6, (point[1] - y1) * 0.6, marker='x', s=16, color=pcolors[indice])
+
+    ticks = [0, 5, 10, 15, 20, 25]
+
+    for i in range(2):
+        axs[i].set_xticks(ticks, [])
+        axs[i].set_yticks(ticks, [])
+        axs[i].xaxis.set_minor_locator(MultipleLocator(1))
+        axs[i].yaxis.set_minor_locator(MultipleLocator(1))
+
+    axs[0].set_yticks(ticks, ticks)
+    axs[1].set_yticks(ticks, [])
+
+    axs[0].set_xticks(ticks, ticks)
+    axs[1].set_xticks(ticks, ticks)
+
+    axs[1].text(
+        -0.4, -0.25,
+        'Scan direction [arcsec]',
+        transform=axs[1].transAxes,
+        color='black'
+    )
+
+    axs[0].text(
+        -0.3, 0.1,
+        'Slit direction [arcsec]',
+        transform=axs[0].transAxes,
+        color='black',
+        rotation=90
+    )
+
+    axs[0].text(
+        0.05, 0.9,
+        r'(a) H$\alpha\pm$1.5$\mathrm{\AA}$',
+        transform=axs[0].transAxes,
+        color='black'
+    )
+
+    axs[1].text(
+        0.05, 0.9,
+        r'(b) H$\alpha\pm$0.35$\mathrm{\AA}$',
+        transform=axs[1].transAxes,
+        color='black'
+    )
+
+    # axs[0][0].text(
+    #     0.05, 0.92,
+    #     '(a) Ca far-wing',
+    #     transform=axs[0][0].transAxes,
+    #     color='black'
+    # )
+
+    plt.subplots_adjust(left=0.23, right=1, bottom=0.23, top=1, wspace=0.0, hspace=0.0)
+
+    plt.savefig(
+        write_path / 'Halpha_magnetic_field_{}_{}.pdf'.format(
+            datestring, timestring
+        ),
+        format='pdf',
+        dpi=300
+    )
+
+
+def plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, ticks):
+
+    write_path = Path('F:\\Harsh\\CourseworkRepo\\KTTAnalysis\\figures')
+
+    # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+
+    base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
+
+    datepath = base_path / datestring
+
+    level4path = datepath / 'Level-4'
+
+    mag_ha_full_line, _ = sunpy.io.read_file(
+        level4path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc_pca.nc_spatial_straylight_corrected.nc_mag_ha_full_line.fits'.format(
+            datestring, timestring
+        )
+    )[0]
+
+    mag_ha_core, _ = sunpy.io.read_file(
+        level4path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc_pca.nc_spatial_straylight_corrected.nc_mag_ha_core.fits'.format(
+            datestring, timestring
+        )
+    )[0]
+
+    fe_mag, _ = sunpy.io.read_file(
+        level4path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc_pca.nc_spatial_straylight_corrected.nc_mag_ca_fe.fits'.format(
+            datestring, timestring
+        )
+    )[0]
+
+    ca_mag, _ = sunpy.io.read_file(
+        level4path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc_pca.nc_spatial_straylight_corrected.nc_mag_ca_core.fits'.format(
+            datestring, timestring
+        )
+    )[0]
+
+    hmi_mag, _ = sunpy.io.read_file(
+        level4path / 'HMI_reference_magnetogram_{}_{}.fits'.format(
+            datestring, timestring
+        )
+    )[0]
+
+    # plt.close('all')
+    # plt.clf()
+    # plt.cla()
+
+    font = {'size': 10}
+
+    matplotlib.rc('font', **font)
+
+    fig, axs = plt.subplots(2, 2, figsize=(7, 7))
+
+    hmi_mag /= 100
+    fe_mag /= 100
+    mag_ha_full_line /= 100
+    ca_mag /= 100
+    mag_ha_core /= 100
+
+    axs[0][0].scatter(hmi_mag[y1:y2, x1:x2], fe_mag[y1:y2, x1:x2], s=1, color='royalblue')
+    axs[0][1].scatter(fe_mag[y1:y2, x1:x2], mag_ha_full_line[y1:y2, x1:x2], s=1, color='royalblue')
+    axs[1][0].scatter(mag_ha_full_line[y1:y2, x1:x2], mag_ha_core[y1:y2, x1:x2], s=1, color='royalblue')
+    axs[1][1].scatter(ca_mag[y1:y2, x1:x2], mag_ha_core[y1:y2, x1:x2], s=1, color='royalblue')
+
+    minn, maxx = np.amin(
+            np.array(
+                [
+                    hmi_mag[y1:y2, x1:x2].min(),
+                    fe_mag[y1:y2, x1:x2].min()
+                ]
+            )
+        ), np.amax(
+            np.array(
+                [
+                    hmi_mag[y1:y2, x1:x2].max(),
+                    fe_mag[y1:y2, x1:x2].max()
+                ]
+            )
+        )
+    a, b = np.polyfit(hmi_mag[y1:y2, x1:x2].flatten(), fe_mag[y1:y2, x1:x2].flatten(), 1)
+
+    xxx = np.arange(minn, maxx, 0.5)
+
+    y = a * xxx + b
+
+    axs[0][0].plot(xxx, y, color='black', linestyle='--')
+    axs[0][0].plot(xxx, xxx, color='darkorange', linestyle='--')
+
+    axs[0][0].text(
+        0.05, 0.9,
+        r'(a)',
+        transform=axs[0][0].transAxes
+    )
+
+    axs[0][0].text(
+        0.05, 0.8,
+        r'$m$ = {}'.format(np.round(a, 2)),
+        transform=axs[0][0].transAxes
+    )
+
+    axs[0][0].set_xlim(
+        minn, maxx
+    )
+    axs[0][0].set_ylim(
+        minn, maxx
+    )
+
+    minn, maxx = np.amin(
+        np.array(
+            [
+                fe_mag[y1:y2, x1:x2].min(),
+                mag_ha_full_line[y1:y2, x1:x2].min()
+            ]
+        )
+    ), np.amax(
+        np.array(
+            [
+                fe_mag[y1:y2, x1:x2].max(),
+                mag_ha_full_line[y1:y2, x1:x2].max()
+            ]
+        )
+    )
+
+    a, b = np.polyfit(fe_mag[y1:y2, x1:x2].flatten(), mag_ha_full_line[y1:y2, x1:x2].flatten(), 1)
+
+    xxx = np.arange(minn, maxx, 0.5)
+
+    y = a * xxx + b
+
+    axs[0][1].plot(xxx, y, color='black', linestyle='--')
+
+    axs[0][1].plot(xxx, xxx, color='darkorange', linestyle='--')
+
+    axs[0][1].text(
+        0.05, 0.9,
+        r'(b)',
+        transform=axs[0][1].transAxes
+    )
+
+    axs[0][1].text(
+        0.05, 0.8,
+        r'$m$ = {}'.format(np.round(a, 2)),
+        transform=axs[0][1].transAxes
+    )
+
+    axs[0][1].set_xlim(
+        minn, maxx
+    )
+    axs[0][1].set_ylim(
+        minn, maxx
+    )
+
+    minn, maxx = np.amin(
+        np.array(
+            [
+                mag_ha_full_line[y1:y2, x1:x2].min(),
+                mag_ha_core[y1:y2, x1:x2].min()
+            ]
+        )
+    ), np.amax(
+        np.array(
+            [
+                mag_ha_full_line[y1:y2, x1:x2].max(),
+                mag_ha_core[y1:y2, x1:x2].max()
+            ]
+        )
+    )
+
+    a, b = np.polyfit(mag_ha_full_line[y1:y2, x1:x2].flatten(), mag_ha_core[y1:y2, x1:x2].flatten(), 1)
+
+    xxx = np.arange(minn, maxx, 0.5)
+
+    y = a * xxx + b
+
+    axs[1][0].plot(xxx, y, color='black', linestyle='--')
+
+    axs[1][0].plot(xxx, xxx, color='darkorange', linestyle='--')
+
+    axs[1][0].text(
+        0.05, 0.9,
+        r'(c)',
+        transform=axs[1][0].transAxes
+    )
+
+    axs[1][0].text(
+        0.05, 0.8,
+        r'$m$ = {}'.format(np.round(a, 2)),
+        transform=axs[1][0].transAxes
+    )
+
+    axs[1][0].set_xlim(
+        minn, maxx
+    )
+    axs[1][0].set_ylim(
+        minn, maxx
+    )
+
+    minn, maxx = np.amin(
+        np.array(
+            [
+                ca_mag[y1:y2, x1:x2].min(),
+                mag_ha_core[y1:y2, x1:x2].min()
+            ]
+        )
+    ), np.amax(
+        np.array(
+            [
+                ca_mag[y1:y2, x1:x2].max(),
+                mag_ha_core[y1:y2, x1:x2].max()
+            ]
+        )
+    )
+
+    a, b = np.polyfit(ca_mag[y1:y2, x1:x2].flatten(), mag_ha_core[y1:y2, x1:x2].flatten(), 1)
+
+    xxx = np.arange(minn, maxx, 0.5)
+
+    y = a * xxx + b
+
+    axs[1][1].plot(xxx, y, color='black', linestyle='--')
+
+    axs[1][1].plot(xxx, xxx, color='darkorange', linestyle='--')
+
+    axs[1][1].text(
+        0.05, 0.9,
+        r'(d)',
+        transform=axs[1][1].transAxes
+    )
+
+    axs[1][1].text(
+        0.05, 0.8,
+        r'$m$ = {}'.format(np.round(a, 2)),
+        transform=axs[1][1].transAxes
+    )
+
+    axs[1][1].set_xlim(
+        minn, maxx
+    )
+    axs[1][1].set_ylim(
+        minn, maxx
+    )
+
+    axs[0][0].set_xticks(ticks, ticks)
+    axs[0][1].set_xticks(ticks, ticks)
+    axs[1][0].set_xticks(ticks, ticks)
+    axs[1][1].set_xticks(ticks, ticks)
+
+    axs[0][0].set_yticks(ticks, ticks)
+    axs[0][1].set_yticks(ticks, ticks)
+    axs[1][0].set_yticks(ticks, ticks)
+    axs[1][1].set_yticks(ticks, ticks)
+
+    for i in range(2):
+        for j in range(2):
+            axs[i][j].xaxis.set_minor_locator(MultipleLocator(1))
+            axs[i][j].yaxis.set_minor_locator(MultipleLocator(1))
+
+    axs[0][0].text(
+        -0.2, 0.1,
+        r'$B_{\mathrm{LOS}}$ (Fe I 8661.8991 $\mathrm{\AA}$) [x 100 G]',
+        transform=axs[0][0].transAxes,
+        rotation=90,
+        color='black'
+    )
+
+    axs[0][0].text(
+        0.25, -0.15,
+        r'$B_{\mathrm{LOS}}$ (HMI) [x 100 G]',
+        transform=axs[0][0].transAxes,
+        color='black'
+    )
+
+    axs[0][1].text(
+        -0.2, 0.15,
+        r'$B_{\mathrm{LOS}}$ (H$\alpha\pm$1.5$\mathrm{\AA}$) [x 100 G]',
+        transform=axs[0][1].transAxes,
+        rotation=90,
+        color='black'
+    )
+
+    axs[0][1].text(
+        0.1, -0.15,
+        r'$B_{\mathrm{LOS}}$ (Fe I 8661.8991 $\mathrm{\AA}$) [x 100 G]',
+        transform=axs[0][1].transAxes,
+        color='black'
+    )
+
+    axs[1][0].text(
+        -0.2, 0.15,
+        r'$B_{\mathrm{LOS}}$ (H$\alpha\pm$0.35$\mathrm{\AA}$) [x 100 G]',
+        transform=axs[1][0].transAxes,
+        rotation=90,
+        color='black'
+    )
+
+    axs[1][0].text(
+        0.15, -0.15,
+        r'$B_{\mathrm{LOS}}$ (H$\alpha\pm$1.5$\mathrm{\AA}$) [x 100 G]',
+        transform=axs[1][0].transAxes,
+        color='black'
+    )
+
+    axs[1][1].text(
+        -0.2, 0.15,
+        r'$B_{\mathrm{LOS}}$ (H$\alpha\pm$0.35$\mathrm{\AA}$) [x 100 G]',
+        transform=axs[1][1].transAxes,
+        rotation=90,
+        color='black'
+    )
+
+    axs[1][1].text(
+        0.15, -0.15,
+        r'$B_{\mathrm{LOS}}$ (Ca II 8662 $\mathrm{\AA}$) [x 100 G]',
+        transform=axs[1][1].transAxes,
+        color='black'
+    )
+
+    plt.subplots_adjust(left=0.1, right=0.99, bottom=0.1, top=0.99, wspace=0.3, hspace=0.3)
+
+    plt.savefig(
+        write_path / 'Halpha_magnetic_field_scatter_{}_{}.pdf'.format(
+            datestring, timestring
+        ),
+        format='pdf',
+        dpi=300
+    )
 
     # plt.show()
 
@@ -505,29 +964,29 @@ if __name__ == '__main__':
     #     points=points
     # )
 
-    datestring = '20230527'
-    timestring = '074428'
-    y1 = 15
-    y2 = 65
-    x1 = 3
-    x2 = 53
-    ticks = [-2000, -1000, 0, 1000, 2000]
-    limit = 2500
-    points = [
-        [10, 47],
-        [41, 43]
-    ]
-    create_fov_plots(
-        datestring=datestring,
-        timestring=timestring,
-        x1=x1,
-        y1=y1,
-        x2=x2,
-        y2=y2,
-        ticks=ticks,
-        limit=limit,
-        points=points
-    )
+    # datestring = '20230527'
+    # timestring = '074428'
+    # y1 = 15
+    # y2 = 65
+    # x1 = 3
+    # x2 = 53
+    # ticks = [-2000, -1000, 0, 1000, 2000]
+    # limit = 2500
+    # points = [
+    #     [10, 47],
+    #     [41, 43]
+    # ]
+    # create_fov_plots(
+    #     datestring=datestring,
+    #     timestring=timestring,
+    #     x1=x1,
+    #     y1=y1,
+    #     x2=x2,
+    #     y2=y2,
+    #     ticks=ticks,
+    #     limit=limit,
+    #     points=points
+    # )
 
     # datestring = '20230603'
     # timestring = '073616'
@@ -545,10 +1004,109 @@ if __name__ == '__main__':
     # ]
     # make_profile_plots(datestring, timestring, points)
 
+    # datestring = '20230527'
+    # timestring = '074428'
+    # points = [
+    #     [10, 47],
+    #     [41, 43]
+    # ]
+    # make_profile_plots(datestring, timestring, points)
+
+    # datestring='20230603'
+    # timestring='073616'
+    # y1 = 14
+    # y2 = 64
+    # x1 = 4
+    # x2 = 54
+    # ticks = [-1500, -1000, -500, 0, 500, 1000, 1500]
+    # limit=1700
+    # points = [
+    #     [20, 45],
+    #     [46, 57]
+    # ]
+    # make_halpha_magnetic_field_plots(
+    #     datestring=datestring,
+    #     timestring=timestring,
+    #     x1=x1,
+    #     y1=y1,
+    #     x2=x2,
+    #     y2=y2,
+    #     ticks=ticks,
+    #     limit=limit,
+    #     points=points
+    # )
+
+    # datestring = '20230601'
+    # timestring = '081014'
+    # y1 = 14
+    # y2 = 64
+    # x1 = 3
+    # x2 = 53
+    # ticks = [-1000, -500, 0, 500, 1000]
+    # limit = 1300
+    # points = [
+    #     [20, 45],
+    #     [10, 37]
+    # ]
+    # make_halpha_magnetic_field_plots(
+    #     datestring=datestring,
+    #     timestring=timestring,
+    #     x1=x1,
+    #     y1=y1,
+    #     x2=x2,
+    #     y2=y2,
+    #     ticks=ticks,
+    #     limit=limit,
+    #     points=points
+    # )
+    #
+    # datestring = '20230527'
+    # timestring = '074428'
+    # y1 = 15
+    # y2 = 65
+    # x1 = 3
+    # x2 = 53
+    # ticks = [-1000, -500, 0, 500, 1000, 2000]
+    # limit = 1200
+    # points = [
+    #     [10, 47],
+    #     [41, 43]
+    # ]
+    # make_halpha_magnetic_field_plots(
+    #     datestring=datestring,
+    #     timestring=timestring,
+    #     x1=x1,
+    #     y1=y1,
+    #     x2=x2,
+    #     y2=y2,
+    #     ticks=ticks,
+    #     limit=limit,
+    #     points=points
+    # )
+
+    datestring = '20230603'
+    timestring = '073616'
+    y1 = 14
+    y2 = 64
+    x1 = 4
+    x2 = 54
+    ticks = [-20, -15, -10, -5, 0, 5]
+    plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, ticks)
+
+    datestring = '20230601'
+    timestring = '081014'
+    y1 = 14
+    y2 = 64
+    x1 = 3
+    x2 = 53
+    ticks = [-20, -15, -10, -5, 0, 5]
+    plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, ticks)
+
     datestring = '20230527'
     timestring = '074428'
-    points = [
-        [10, 47],
-        [41, 43]
-    ]
-    make_profile_plots(datestring, timestring, points)
+    y1 = 15
+    y2 = 65
+    x1 = 3
+    x2 = 53
+    ticks = [-20, -15, -10, -5, 0, 5]
+    plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, ticks)
