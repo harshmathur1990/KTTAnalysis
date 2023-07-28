@@ -76,7 +76,7 @@ def approximate_stray_light_and_sigma(
 
     sigma = fwhm / 2.355
 
-    k_values = np.arange(0, 0.5, 0.01)
+    k_values = np.arange(0, 0.3, 0.01)
 
     result = np.zeros(shape=(sigma.size, k_values.size))
 
@@ -104,10 +104,14 @@ def approximate_stray_light_and_sigma(
                 kernel, mode='same') + (
                     (1 - k_value) * hmi_image
             )
+
             result_images[i][j] = degraded_image
-            result[i][j] = mean_squarred_error(
-                obs_image / obs_image.max(), degraded_image / degraded_image.max()
-            )
+            if degraded_image.min() < 0:
+                result[i][j] = np.inf
+            else:
+                result[i][j] = mean_squarred_error(
+                    obs_image / obs_image.max(), degraded_image / degraded_image.max()
+                )
 
     sigma_ind, k_ind = np.unravel_index(np.argmin(result), result.shape)
     return result, result_images, fwhm[sigma_ind], k_values[k_ind], sigma_ind, k_ind
@@ -142,7 +146,9 @@ def estimate_alpha_and_sigma(datestring, timestring, hmi_cont_file, hmi_ref_file
     #
     # base_path = Path('/mnt/f/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
-    base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
+    # base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
+
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/')
 
     datepath = base_path / datestring
 
@@ -218,17 +224,23 @@ def estimate_alpha_and_sigma(datestring, timestring, hmi_cont_file, hmi_ref_file
         norm_intensity_6563[points_ha[1][1]:points_ha[2][1], points_ha[1][0]:points_ha[2][0]],
     )
 
-    corrected_halpha_intensity_data = np.transpose(
-        vec_correct_for_straylight(
-            np.transpose(
-                f['profiles'][0, :, :, ind[0:800], 0],
-                axes=(2, 0, 1)
+    while True:
+        corrected_halpha_intensity_data = np.transpose(
+            vec_correct_for_straylight(
+                np.transpose(
+                    f['profiles'][0, :, :, ind[0:800], 0],
+                    axes=(2, 0, 1)
+                ),
+                fwhm_ha,
+                k_value_ha
             ),
-            fwhm_ha,
-            k_value_ha
-        ),
-        axes=(1, 2, 0)
-    )
+            axes=(1, 2, 0)
+        )
+
+        if corrected_halpha_intensity_data.min() <= 0:
+            k_value_ha -= 0.1
+        else:
+            break
 
     planck_function_866_nm = prepare_planck_function(8662)
 
@@ -257,17 +269,23 @@ def estimate_alpha_and_sigma(datestring, timestring, hmi_cont_file, hmi_ref_file
         norm_intensity_8662[points_ca[1][1]:points_ca[2][1], points_ca[1][0]:points_ca[2][0]],
     )
 
-    corrected_ca_intensity_data = np.transpose(
-        vec_correct_for_straylight(
-            np.transpose(
-                f['profiles'][0, :, :, ind[800:], 0],
-                axes=(2, 0, 1)
+    while True:
+        corrected_ca_intensity_data = np.transpose(
+            vec_correct_for_straylight(
+                np.transpose(
+                    f['profiles'][0, :, :, ind[800:], 0],
+                    axes=(2, 0, 1)
+                ),
+                fwhm_ca,
+                k_value_ca
             ),
-            fwhm_ca,
-            k_value_ca
-        ),
-        axes=(1, 2, 0)
-    )
+            axes=(1, 2, 0)
+        )
+
+        if corrected_ca_intensity_data.min() <= 0:
+            k_value_ca -= 0.1
+        else:
+            break
 
     fo = h5py.File(level4path / 'Spatial_straylight_correction_{}_{}.h5'.format(datestring, timestring), 'w')
 
@@ -346,10 +364,10 @@ def estimate_alpha_and_sigma(datestring, timestring, hmi_cont_file, hmi_ref_file
 
 
 if __name__ == '__main__':
-    datestring = '20230601'
-    timestring = '081014'
-    hmi_cont_file = 'hmi.Ic_720s.20230601_050000_TAI.3.continuum.fits'
-    hmi_ref_file = 'HMI_reference_image_20230601_081014.fits'
+    datestring = '20230527'
+    timestring = '074428'
+    hmi_cont_file = 'hmi.Ic_720s.{}_044800_TAI.3.continuum.fits'.format(datestring)
+    hmi_ref_file = 'HMI_reference_image_{}_{}.fits'.format(datestring, timestring)
     estimate_alpha_and_sigma(
         datestring,
         timestring,
