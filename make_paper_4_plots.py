@@ -642,33 +642,35 @@ def plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, t
     ca_mag /= 100
     mag_ha_core /= 100
 
-    axs[0][0].scatter(hmi_mag[y1:y2, x1:x2], fe_mag[y1:y2, x1:x2], s=1, color='royalblue')
+    axs[0][0].scatter(mag_ha_full_line[y1:y2, x1:x2], mag_ha_core[y1:y2, x1:x2], s=1, color='royalblue')
     axs[0][1].scatter(fe_mag[y1:y2, x1:x2], mag_ha_full_line[y1:y2, x1:x2], s=1, color='royalblue')
-    axs[1][0].scatter(mag_ha_full_line[y1:y2, x1:x2], mag_ha_core[y1:y2, x1:x2], s=1, color='royalblue')
+    axs[1][0].scatter(hmi_mag[y1:y2, x1:x2], fe_mag[y1:y2, x1:x2], s=1, color='royalblue')
     axs[1][1].scatter(ca_mag[y1:y2, x1:x2], mag_ha_core[y1:y2, x1:x2], s=1, color='royalblue')
 
     minn, maxx = np.amin(
-            np.array(
-                [
-                    hmi_mag[y1:y2, x1:x2].min(),
-                    fe_mag[y1:y2, x1:x2].min()
-                ]
-            )
-        ), np.amax(
-            np.array(
-                [
-                    hmi_mag[y1:y2, x1:x2].max(),
-                    fe_mag[y1:y2, x1:x2].max()
-                ]
-            )
+        np.array(
+            [
+                mag_ha_full_line[y1:y2, x1:x2].min(),
+                mag_ha_core[y1:y2, x1:x2].min()
+            ]
         )
-    a, b = np.polyfit(hmi_mag[y1:y2, x1:x2].flatten(), fe_mag[y1:y2, x1:x2].flatten(), 1)
+    ), np.amax(
+        np.array(
+            [
+                mag_ha_full_line[y1:y2, x1:x2].max(),
+                mag_ha_core[y1:y2, x1:x2].max()
+            ]
+        )
+    )
+
+    a, b = np.polyfit(mag_ha_full_line[y1:y2, x1:x2].flatten(), mag_ha_core[y1:y2, x1:x2].flatten(), 1)
 
     xxx = np.arange(minn, maxx, 0.5)
 
     y = a * xxx + b
 
     axs[0][0].plot(xxx, y, color='black', linestyle='--')
+
     axs[0][0].plot(xxx, xxx, color='darkorange', linestyle='--')
 
     axs[0][0].text(
@@ -738,27 +740,25 @@ def plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, t
     minn, maxx = np.amin(
         np.array(
             [
-                mag_ha_full_line[y1:y2, x1:x2].min(),
-                mag_ha_core[y1:y2, x1:x2].min()
+                hmi_mag[y1:y2, x1:x2].min(),
+                fe_mag[y1:y2, x1:x2].min()
             ]
         )
     ), np.amax(
         np.array(
             [
-                mag_ha_full_line[y1:y2, x1:x2].max(),
-                mag_ha_core[y1:y2, x1:x2].max()
+                hmi_mag[y1:y2, x1:x2].max(),
+                fe_mag[y1:y2, x1:x2].max()
             ]
         )
     )
-
-    a, b = np.polyfit(mag_ha_full_line[y1:y2, x1:x2].flatten(), mag_ha_core[y1:y2, x1:x2].flatten(), 1)
+    a, b = np.polyfit(hmi_mag[y1:y2, x1:x2].flatten(), fe_mag[y1:y2, x1:x2].flatten(), 1)
 
     xxx = np.arange(minn, maxx, 0.5)
 
     y = a * xxx + b
 
     axs[1][0].plot(xxx, y, color='black', linestyle='--')
-
     axs[1][0].plot(xxx, xxx, color='darkorange', linestyle='--')
 
     axs[1][0].text(
@@ -841,16 +841,16 @@ def plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, t
             axs[i][j].yaxis.set_minor_locator(MultipleLocator(1))
 
     axs[0][0].text(
-        -0.2, 0.1,
-        r'$B_{\mathrm{LOS}}$ (Fe I 8661.8991 $\mathrm{\AA}$) [x 100 G]',
+        -0.2, 0.15,
+        r'$B_{\mathrm{LOS}}$ (H$\alpha\pm$0.35$\mathrm{\AA}$) [x 100 G]',
         transform=axs[0][0].transAxes,
         rotation=90,
         color='black'
     )
 
     axs[0][0].text(
-        0.25, -0.15,
-        r'$B_{\mathrm{LOS}}$ (HMI) [x 100 G]',
+        0.15, -0.15,
+        r'$B_{\mathrm{LOS}}$ (H$\alpha\pm$1.5$\mathrm{\AA}$) [x 100 G]',
         transform=axs[0][0].transAxes,
         color='black'
     )
@@ -871,16 +871,16 @@ def plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, t
     )
 
     axs[1][0].text(
-        -0.2, 0.15,
-        r'$B_{\mathrm{LOS}}$ (H$\alpha\pm$0.35$\mathrm{\AA}$) [x 100 G]',
+        -0.2, 0.1,
+        r'$B_{\mathrm{LOS}}$ (Fe I 8661.8991 $\mathrm{\AA}$) [x 100 G]',
         transform=axs[1][0].transAxes,
         rotation=90,
         color='black'
     )
 
     axs[1][0].text(
-        0.15, -0.15,
-        r'$B_{\mathrm{LOS}}$ (H$\alpha\pm$1.5$\mathrm{\AA}$) [x 100 G]',
+        0.25, -0.15,
+        r'$B_{\mathrm{LOS}}$ (HMI) [x 100 G]',
         transform=axs[1][0].transAxes,
         color='black'
     )
