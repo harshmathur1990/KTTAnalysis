@@ -486,7 +486,7 @@ def make_halpha_magnetic_field_plots(datestring, timestring, x1, y1, x2, y2, tic
 
     cmap1 = LinearSegmentedColormap.from_list("mycmap", colors)
 
-    font = {'size': 8}
+    font = {'size': 6}
 
     matplotlib.rc('font', **font)
 
@@ -630,7 +630,7 @@ def plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, t
     # plt.clf()
     # plt.cla()
 
-    font = {'size': 10}
+    font = {'size': 12}
 
     matplotlib.rc('font', **font)
 
@@ -675,7 +675,7 @@ def plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, t
 
     axs[0][0].text(
         0.05, 0.9,
-        r'(a)',
+        r'(c)',
         transform=axs[0][0].transAxes
     )
 
@@ -720,7 +720,7 @@ def plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, t
 
     axs[0][1].text(
         0.05, 0.9,
-        r'(b)',
+        r'(d)',
         transform=axs[0][1].transAxes
     )
 
@@ -763,7 +763,7 @@ def plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, t
 
     axs[1][0].text(
         0.05, 0.9,
-        r'(c)',
+        r'(e)',
         transform=axs[1][0].transAxes
     )
 
@@ -808,7 +808,7 @@ def plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, t
 
     axs[1][1].text(
         0.05, 0.9,
-        r'(d)',
+        r'(f)',
         transform=axs[1][1].transAxes
     )
 
@@ -841,7 +841,7 @@ def plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, t
             axs[i][j].yaxis.set_minor_locator(MultipleLocator(1))
 
     axs[0][0].text(
-        -0.2, 0.15,
+        -0.25, 0.1,
         r'$B_{\mathrm{LOS}}$ (H$\alpha\pm$0.35$\mathrm{\AA}$) [x 100 G]',
         transform=axs[0][0].transAxes,
         rotation=90,
@@ -849,14 +849,14 @@ def plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, t
     )
 
     axs[0][0].text(
-        0.15, -0.15,
+        0.15, -0.2,
         r'$B_{\mathrm{LOS}}$ (H$\alpha\pm$1.5$\mathrm{\AA}$) [x 100 G]',
         transform=axs[0][0].transAxes,
         color='black'
     )
 
     axs[0][1].text(
-        -0.2, 0.15,
+        -0.25, 0.1,
         r'$B_{\mathrm{LOS}}$ (H$\alpha\pm$1.5$\mathrm{\AA}$) [x 100 G]',
         transform=axs[0][1].transAxes,
         rotation=90,
@@ -864,14 +864,14 @@ def plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, t
     )
 
     axs[0][1].text(
-        0.1, -0.15,
+        0.0, -0.2,
         r'$B_{\mathrm{LOS}}$ (Fe I 8661.8991 $\mathrm{\AA}$) [x 100 G]',
         transform=axs[0][1].transAxes,
         color='black'
     )
 
     axs[1][0].text(
-        -0.2, 0.1,
+        -0.25, 0.02,
         r'$B_{\mathrm{LOS}}$ (Fe I 8661.8991 $\mathrm{\AA}$) [x 100 G]',
         transform=axs[1][0].transAxes,
         rotation=90,
@@ -879,14 +879,14 @@ def plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, t
     )
 
     axs[1][0].text(
-        0.25, -0.15,
+        0.25, -0.2,
         r'$B_{\mathrm{LOS}}$ (HMI) [x 100 G]',
         transform=axs[1][0].transAxes,
         color='black'
     )
 
     axs[1][1].text(
-        -0.2, 0.15,
+        -0.25, 0.1,
         r'$B_{\mathrm{LOS}}$ (H$\alpha\pm$0.35$\mathrm{\AA}$) [x 100 G]',
         transform=axs[1][1].transAxes,
         rotation=90,
@@ -894,7 +894,7 @@ def plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, t
     )
 
     axs[1][1].text(
-        0.15, -0.15,
+        0.05, -0.2,
         r'$B_{\mathrm{LOS}}$ (Ca II 8662 $\mathrm{\AA}$) [x 100 G]',
         transform=axs[1][1].transAxes,
         color='black'
@@ -1035,7 +1035,7 @@ if __name__ == '__main__':
     #     limit=limit,
     #     points=points
     # )
-
+    #
     # datestring = '20230601'
     # timestring = '081014'
     # y1 = 14

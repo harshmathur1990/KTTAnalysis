@@ -620,6 +620,101 @@ def run_hmi_flicker(datestring, timestring, hmi_cont_file, hmi_mag_file, angle=-
                         offset_x:file1['profiles'].shape[2] + offset_x], header, overwrite=True)
 
 
+# def run_hmi_tilt_flicker(datestring, timestring, hmi_cont_file, angle=-13, offset_x=0, offset_y=0):
+#     # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+#
+#     # base_path = Path('/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+#
+#     base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
+#
+#     level4path = base_path / datestring / 'Level-4'
+#
+#     file1 = h5py.File(level4path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc'.format(datestring, timestring), 'r')
+#     hmi_image, hmi_header = sunpy.io.read_file(level4path / hmi_cont_file)[1]
+#     hmi_map = sunpy.map.Map(hmi_image, hmi_header)
+#     aia_map = register(hmi_map)
+#
+#     spread = 100
+#
+#     init_x, init_y = -397, -244
+#
+#     init = (init_x - spread / 2, init_y - spread / 2)
+#
+#     final = (init_x + spread / 2, init_y + spread / 2)
+#
+#     y0 = init[1] * u.arcsec
+#
+#     x0 = init[0] * u.arcsec
+#
+#     xf = final[0] * u.arcsec
+#
+#     yf = final[1] * u.arcsec
+#
+#     bottom_left1 = astropy.coordinates.SkyCoord(
+#         x0, y0, frame=aia_map.coordinate_frame
+#     )
+#
+#     top_right1 = astropy.coordinates.SkyCoord(
+#         xf, yf, frame=aia_map.coordinate_frame
+#     )
+#
+#     submap = aia_map.submap(bottom_left=bottom_left1, top_right=top_right1)
+#
+#     rotated_submap = submap.rotate(
+#         angle=angle * u.deg
+#     )
+#
+#     rotated_data = rotated_submap.data
+#
+#     plt.imshow(rotated_data, cmap='gray', origin='lower')
+#
+#     plt.show()
+#
+#     flicker(
+#         file1['profiles'][0, :, :, 32, 0], rotated_data[offset_y:file1['profiles'].shape[1] + offset_y, offset_x:file1['profiles'].shape[2] + offset_x]
+#     )
+#
+#     hmi_image_mag, hmi_header_mag = sunpy.io.read_file(level4path / hmi_mag_file)[1]
+#     hmi_map_mag = sunpy.map.Map(hmi_image_mag, hmi_header_mag)
+#     aia_map_mag = register(hmi_map_mag)
+#
+#     submap_mag = aia_map_mag.submap(bottom_left=bottom_left1, top_right=top_right1)
+#
+#     rotated_submap_mag = submap_mag.rotate(
+#         angle=angle * u.deg
+#     )
+#
+#     rotated_data_mag = rotated_submap_mag.data
+#
+#     flicker(
+#         file1['profiles'][0, :, :, 32, 0],
+#         rotated_data_mag[offset_y:file1['profiles'].shape[1] + offset_y, offset_x:file1['profiles'].shape[2] + offset_x]
+#     )
+#
+#     header = dict()
+#
+#     header['CDELT2'] = 0.6
+#
+#     header['CDELT3'] = 0.6
+#
+#     header['CUNIT2'] = 'arcsec'
+#
+#     header['CUNIT3'] = 'arcsec'
+#
+#     header['CTYPE2'] = 'HPLT-TAN'
+#
+#     header['CTYPE3'] = 'HPLN-TAN'
+#
+#     header['CNAME2'] = 'HPC lat'
+#
+#     header['CNAME3'] = 'HPC lon'
+#
+#     sunpy.io.write_file(level4path / 'HMI_reference_image_{}_{}.fits'.format(datestring, timestring), rotated_data[offset_y:file1['profiles'].shape[1] + offset_y, offset_x:file1['profiles'].shape[2] + offset_x], header, overwrite=True)
+#
+#     sunpy.io.write_file(level4path / 'HMI_reference_magnetogram_{}_{}.fits'.format(datestring, timestring),
+#                         rotated_data_mag[offset_y:file1['profiles'].shape[1] + offset_y,
+#                         offset_x:file1['profiles'].shape[2] + offset_x], header, overwrite=True)
+
 if __name__ == '__main__':
     # run_flicker(
     #     datestring='20230520', timestring='075906',
