@@ -56,27 +56,28 @@ def mean_squarred_error(obs_image, hmi_image):
 def approximate_stray_light_and_sigma(
         obs_image,
         hmi_image,
+        kernel_size,
+        y1,
+        y2,
+        x1,
+        x2,
+        y3,
+        y4,
+        x3,
+        x4
 ):
 
-    max_fwhm = np.min(obs_image.shape)
+    a = 3.457142857142857
 
-    if max_fwhm%2 == 0:
-        max_fwhm -= 1
+    b = 0.3428571428571427
 
-    s1 = hmi_image.shape[0]
-    s2 = hmi_image.shape[1]
-
-    if s1 % 2 == 0:
-        s1 -= 1
-
-    if s2 % 2 == 0:
-        s2 -= 1
+    max_fwhm = np.int64(np.round((kernel_size - b) / a, 0))
 
     fwhm = np.linspace(2, max_fwhm, 100)
 
     sigma = fwhm / 2.355
 
-    k_values = np.arange(0, 0.3, 0.01)
+    k_values = np.arange(0, 1, 0.01)
 
     result = np.zeros(shape=(sigma.size, k_values.size))
 
@@ -93,9 +94,9 @@ def approximate_stray_light_and_sigma(
     for i, _sig in enumerate(sigma):
         for j, k_value in enumerate(k_values):
 
-            rev_kernel = np.zeros((s1, s2), dtype=np.float64)
+            rev_kernel = np.zeros((kernel_size, kernel_size), dtype=np.float64)
 
-            rev_kernel[s1 // 2, s2 // 2] = 1
+            rev_kernel[kernel_size // 2, kernel_size // 2] = 1
 
             kernel = scipy.ndimage.gaussian_filter(rev_kernel, sigma=_sig)
 
@@ -106,41 +107,56 @@ def approximate_stray_light_and_sigma(
             )
 
             result_images[i][j] = degraded_image
-            if degraded_image.min() < 0:
+            corr_image = correct_for_straylight(obs_image, fwhm[i], k_value, kernel_size=kernel_size)
+            if degraded_image.min() <= 0 or corr_image.min() <= 0:
                 result[i][j] = np.inf
             else:
-                result[i][j] = mean_squarred_error(
-                    obs_image / obs_image.max(), degraded_image / degraded_image.max()
+                # result[i][j] = mean_squarred_error(
+                #     obs_image / obs_image.max(), degraded_image / degraded_image.max()
+                # )
+                # result[i][j] = mean_squarred_error(
+                #     (obs_image - obs_image.min()) / (obs_image.max() - obs_image.min()),
+                #     (degraded_image - degraded_image.min()) / (degraded_image.max() - degraded_image.min())
+                # )
+
+                norm_obs = (obs_image - obs_image.min()) / (obs_image.max() - obs_image.min())
+                norm_degraded = (degraded_image - degraded_image.min()) / (degraded_image.max() - degraded_image.min())
+                result[i][j] = np.abs(
+                    np.mean(norm_obs[y1:y2, x1:x2]) - np.mean(norm_degraded[y3:y4, x3:x4])
                 )
 
     sigma_ind, k_ind = np.unravel_index(np.argmin(result), result.shape)
+
+    corr_image = correct_for_straylight(obs_image, fwhm[sigma_ind], k_values[k_ind], kernel_size=kernel_size)
+    if corr_image.min() <= 0:
+        import ipdb;ipdb.set_trace()
     return result, result_images, fwhm[sigma_ind], k_values[k_ind], sigma_ind, k_ind
 
 
-def correct_for_straylight(image, fwhm, k_value):
-    s1 = image.shape[0]
-    s2 = image.shape[1]
+def correct_for_straylight(image, fwhm, k_value, kernel_size=None):
 
-    if s1 % 2 == 0:
-        s1 -= 1
+    rev_kernel = np.zeros((kernel_size, kernel_size))
 
-    if s2 % 2 == 0:
-        s2 -= 1
-
-    rev_kernel = np.zeros((s1, s2))
-
-    rev_kernel[s1//2, s2//2] = 1
+    rev_kernel[kernel_size//2, kernel_size//2] = 1
 
     kernel = scipy.ndimage.gaussian_filter(rev_kernel, sigma=fwhm / 2.355)
 
-    kernel[s1//2, s2//2] = 0
+    kernel[kernel_size//2, kernel_size//2] = 0
 
     convolved = scipy.signal.oaconvolve(image, kernel, mode='same')
 
     return (image - k_value * convolved) / (1 - k_value)
 
 
-def estimate_alpha_and_sigma(datestring, timestring, hmi_cont_file, hmi_ref_file):
+def get_image_contrast(image):
+    nm = (image - image.min()) / (image.max() - image.min())
+
+    return nm.std()
+
+
+def estimate_alpha_and_sigma(
+        datestring, timestring, hmi_cont_file, hmi_ref_file,
+):
 
     # base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
     #
@@ -194,7 +210,7 @@ def estimate_alpha_and_sigma(datestring, timestring, hmi_cont_file, hmi_ref_file
 
     vec_correct_for_straylight = np.vectorize(
         correct_for_straylight,
-        signature='(x,y),(),()->(x,y)'
+        signature='(x,y),(),(),()->(x,y)'
     )
 
     planck_function_656_nm = prepare_planck_function(6563)
@@ -219,9 +235,38 @@ def estimate_alpha_and_sigma(datestring, timestring, hmi_cont_file, hmi_ref_file
 
     norm_intensity_6563 = intensity_6563 / intensity_6563[points_ha[0][1], points_ha[0][0]]
 
+    kernel_size_ha = np.int64(
+        np.amin(
+            [
+                np.abs(points_ha[1][1] - points_ha[2][1]),
+                np.abs(points_ha[1][0] - points_ha[2][0])
+            ]
+        )
+    )
+
+    if kernel_size_ha % 2 == 0:
+        kernel_size_ha -= 1
+
+    plt.imshow(halpha_image[points_ha[1][1]:points_ha[2][1], points_ha[1][0]:points_ha[2][0]], cmap='gray', origin='lower')
+
+    compare_points_ha = np.array(plt.ginput(4, 600))
+
+    compare_points_ha = compare_points_ha.astype(np.int64)
+
+    plt.close('all')
+
     result_ha, result_images_ha, fwhm_ha, k_value_ha, sigma_ind_ha, k_ind_ha = approximate_stray_light_and_sigma(
         norm_halpha_image[points_ha[1][1]:points_ha[2][1], points_ha[1][0]:points_ha[2][0]],
         norm_intensity_6563[points_ha[1][1]:points_ha[2][1], points_ha[1][0]:points_ha[2][0]],
+        kernel_size=kernel_size_ha,
+        y1=compare_points_ha[0][1],
+        y2=compare_points_ha[1][1],
+        x1=compare_points_ha[0][0],
+        x2=compare_points_ha[1][0],
+        y3=compare_points_ha[2][1],
+        y4=compare_points_ha[3][1],
+        x3=compare_points_ha[2][0],
+        x4=compare_points_ha[3][0]
     )
 
     while True:
@@ -232,13 +277,15 @@ def estimate_alpha_and_sigma(datestring, timestring, hmi_cont_file, hmi_ref_file
                     axes=(2, 0, 1)
                 ),
                 fwhm_ha,
-                k_value_ha
+                k_value_ha,
+                kernel_size=kernel_size_ha
             ),
             axes=(1, 2, 0)
         )
 
         if corrected_halpha_intensity_data.min() <= 0:
-            k_value_ha -= 0.1
+            k_value_ha -= 0.01
+            sys.stdout.write('Decreasing k_value_ha to {}\n'.format(k_value_ha))
         else:
             break
 
@@ -264,9 +311,42 @@ def estimate_alpha_and_sigma(datestring, timestring, hmi_cont_file, hmi_ref_file
 
     norm_intensity_8662 = intensity_8662 / intensity_8662[points_ca[0][1], points_ca[0][0]]
 
+    kernel_size_ca = np.int64(
+        np.amin(
+            [
+                np.abs(points_ca[1][1] - points_ca[2][1]),
+                np.abs(points_ca[1][0] - points_ca[2][0])
+            ]
+        )
+    )
+
+    if kernel_size_ca % 2 == 0:
+        kernel_size_ca -= 1
+
+    plt.imshow(
+        ca_image[points_ca[1][1]:points_ca[2][1], points_ca[1][0]:points_ca[2][0]],
+        cmap='gray',
+        origin='lower'
+    )
+
+    compare_points_ca = np.array(plt.ginput(4, 600))
+
+    compare_points_ca = compare_points_ca.astype(np.int64)
+
+    plt.close('all')
+
     result_ca, result_images_ca, fwhm_ca, k_value_ca, sigma_ind_ca, k_ind_ca = approximate_stray_light_and_sigma(
         norm_ca_image[points_ca[1][1]:points_ca[2][1], points_ca[1][0]:points_ca[2][0]],
         norm_intensity_8662[points_ca[1][1]:points_ca[2][1], points_ca[1][0]:points_ca[2][0]],
+        kernel_size=kernel_size_ca,
+        y1=compare_points_ca[0][1],
+        y2=compare_points_ca[1][1],
+        x1=compare_points_ca[0][0],
+        x2=compare_points_ca[1][0],
+        y3=compare_points_ca[2][1],
+        y4=compare_points_ca[3][1],
+        x3=compare_points_ca[2][0],
+        x4=compare_points_ca[3][0]
     )
 
     while True:
@@ -277,15 +357,47 @@ def estimate_alpha_and_sigma(datestring, timestring, hmi_cont_file, hmi_ref_file
                     axes=(2, 0, 1)
                 ),
                 fwhm_ca,
-                k_value_ca
+                k_value_ca,
+                kernel_size=kernel_size_ca
             ),
             axes=(1, 2, 0)
         )
 
         if corrected_ca_intensity_data.min() <= 0:
-            k_value_ca -= 0.1
+            k_value_ca -= 0.01
+            sys.stdout.write('Decreasing k_value_ca to {}\n'.format(k_value_ca))
         else:
             break
+
+    vec_get_image_contrast = np.vectorize(get_image_contrast, signature='(x,y)->()')
+
+    image_contrast_halpha_improved = vec_get_image_contrast(
+        np.transpose(
+            corrected_halpha_intensity_data,
+            axes=(2, 0, 1)
+        )
+    )
+
+    image_contrast_halpha_original = vec_get_image_contrast(
+        np.transpose(
+            f['profiles'][0, :, :, ind[0:800], 0],
+            axes=(2, 0, 1)
+        )
+    )
+
+    image_contrast_ca_improved = vec_get_image_contrast(
+        np.transpose(
+            corrected_ca_intensity_data,
+            axes=(2, 0, 1)
+        )
+    )
+
+    image_contrast_ca_original = vec_get_image_contrast(
+        np.transpose(
+            f['profiles'][0, :, :, ind[800:], 0],
+            axes=(2, 0, 1)
+        )
+    )
 
     fo = h5py.File(level4path / 'Spatial_straylight_correction_{}_{}.h5'.format(datestring, timestring), 'w')
 
@@ -316,6 +428,14 @@ def estimate_alpha_and_sigma(datestring, timestring, hmi_cont_file, hmi_ref_file
     fo['sigma_ind_ca'] = sigma_ind_ca
 
     fo['k_ind_ca'] = k_ind_ca
+
+    fo['image_contrast_halpha_improved'] = image_contrast_halpha_improved
+
+    fo['image_contrast_halpha_original'] = image_contrast_halpha_original
+
+    fo['image_contrast_ca_improved'] = image_contrast_ca_improved
+
+    fo['image_contrast_ca_original'] = image_contrast_ca_original
 
     fo.close()
 
@@ -364,13 +484,26 @@ def estimate_alpha_and_sigma(datestring, timestring, hmi_cont_file, hmi_ref_file
 
 
 if __name__ == '__main__':
-    datestring = '20230527'
-    timestring = '074428'
-    hmi_cont_file = 'hmi.Ic_720s.{}_044800_TAI.3.continuum.fits'.format(datestring)
+    # datestring = '20230527'
+    # timestring = '074428'
+    # hmi_time = '044800'
+    # hmi_cont_file = 'hmi.Ic_720s.{}_{}_TAI.3.continuum.fits'.format(datestring, hmi_time)
+    # hmi_ref_file = 'HMI_reference_image_{}_{}.fits'.format(datestring, timestring)
+    # estimate_alpha_and_sigma(
+    #     datestring,
+    #     timestring,
+    #     hmi_cont_file,
+    #     hmi_ref_file,
+    # )
+
+    datestring = '20230603'
+    timestring = '073616'
+    hmi_time = '043600'
+    hmi_cont_file = 'hmi.Ic_720s.{}_{}_TAI.3.continuum.fits'.format(datestring, hmi_time)
     hmi_ref_file = 'HMI_reference_image_{}_{}.fits'.format(datestring, timestring)
     estimate_alpha_and_sigma(
         datestring,
         timestring,
         hmi_cont_file,
-        hmi_ref_file
+        hmi_ref_file,
     )

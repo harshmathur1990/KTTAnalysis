@@ -10,7 +10,7 @@ import matplotlib
 from matplotlib.ticker import MultipleLocator
 from matplotlib.ticker import FormatStrFormatter
 
-def calculate_magnetic_field(datestring):
+def calculate_magnetic_field(datestring, errors=None):
 
     # base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
 
@@ -33,22 +33,26 @@ def calculate_magnetic_field(datestring):
 
         ind = ind[800:]
 
-        # actual_calculate_blos = prepare_calculate_blos(
-        #     fcaha['profiles'][0][:, :, ind],
-        #     fcaha['wav'][ind] / 10,
-        #     8661.8991 / 10,
-        #     8661.5 / 10,
-        #     8661.9 / 10,
-        #     1.5,
-        #     transition_skip_list=None,
-        #     bin_factor=16
-        # )
-        #
-        # vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
-        #
-        # magca = np.fromfunction(vec_actual_calculate_blos, shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
-        #
-        # sunpy.io.write_file(level4path / '{}_mag_ca_fe.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
+        actual_calculate_blos = prepare_calculate_blos(
+            fcaha['profiles'][0][:, :, ind],
+            fcaha['wav'][ind] / 10,
+            8661.8991 / 10,
+            8661.5 / 10,
+            8661.9 / 10,
+            1.5,
+            transition_skip_list=None,
+            bin_factor=16,
+            errors=errors
+        )
+
+        vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
+
+        magca = np.fromfunction(vec_actual_calculate_blos, shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
+
+        if errors is not None:
+            sunpy.io.write_file(level4path / '{}_mag_ca_fe_errors.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
+        else:
+            sunpy.io.write_file(level4path / '{}_mag_ca_fe.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
 
         actual_calculate_blos = prepare_calculate_blos(
             fcaha['profiles'][0][:, :, ind],
@@ -58,7 +62,8 @@ def calculate_magnetic_field(datestring):
             (8662.17 + 0.4) / 10,
             0.83,
             transition_skip_list=None,
-            bin_factor=16
+            bin_factor=16,
+            errors=errors
         )
 
         vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
@@ -66,64 +71,78 @@ def calculate_magnetic_field(datestring):
         magca = np.fromfunction(vec_actual_calculate_blos,
                                 shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
 
-        sunpy.io.write_file(level4path / '{}_mag_ca_core.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
+        if errors is not None:
+            sunpy.io.write_file(level4path / '{}_mag_ca_core_errors.fits'.format(a_mag_file.name), magca, dict(),
+                                overwrite=True)
+        else:
+            sunpy.io.write_file(level4path / '{}_mag_ca_core.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
 
-    # for a_mag_file in all_mag_files:
-    #     fcaha = h5py.File(a_mag_file, 'r')
-    #
-    #     ind = np.where(fcaha['profiles'][0, 0, 0, :, 0] != 0)[0]
-    #
-    #     ind = ind[0:800]
-    #     ha_center_wave = 6562.8 / 10
-    #     wave_range = 0.35 / 10
-    #
-    #     transition_skip_list = np.array(
-    #         [
-    #             [6560.57, 0.25],
-    #             [6561.09, 0.1],
-    #             [6562.44, 0.1],
-    #             [6563.5, 0.25],
-    #             [6564.15, 0.35]
-    #         ]
-    #     ) / 10
-    #
-    #     actual_calculate_blos = prepare_calculate_blos(
-    #         fcaha['profiles'][0][:, :, ind],
-    #         fcaha['wav'][ind] / 10,
-    #         ha_center_wave,
-    #         ha_center_wave - wave_range,
-    #         ha_center_wave + wave_range,
-    #         1.048,
-    #         transition_skip_list=transition_skip_list,
-    #         bin_factor=16
-    #     )
-    #
-    #     vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
-    #
-    #     magha = np.fromfunction(vec_actual_calculate_blos, shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
-    #
-    #     sunpy.io.write_file(level4path / '{}_mag_ha_core.fits'.format(a_mag_file.name), magha, dict(), overwrite=True)
-    #
-    #     wave_range = 1.5 / 10
-    #
-    #     actual_calculate_blos = prepare_calculate_blos(
-    #         fcaha['profiles'][0][:, :, ind],
-    #         fcaha['wav'][ind] / 10,
-    #         ha_center_wave,
-    #         ha_center_wave - wave_range,
-    #         ha_center_wave + wave_range,
-    #         1.048,
-    #         transition_skip_list=transition_skip_list,
-    #         bin_factor=16
-    #     )
-    #
-    #     vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
-    #
-    #     magfha = np.fromfunction(vec_actual_calculate_blos,
-    #                              shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
-    #
-    #     sunpy.io.write_file(level4path / '{}_mag_ha_full_line.fits'.format(a_mag_file.name), magfha, dict(),
-    #                         overwrite=True)
+    for a_mag_file in all_mag_files:
+        fcaha = h5py.File(a_mag_file, 'r')
+
+        ind = np.where(fcaha['profiles'][0, 0, 0, :, 0] != 0)[0]
+
+        ind = ind[0:800]
+        ha_center_wave = 6562.8 / 10
+        wave_range = 0.35 / 10
+
+        transition_skip_list = np.array(
+            [
+                [6560.57, 0.25],
+                [6561.09, 0.1],
+                [6562.44, 0.1],
+                [6563.5, 0.25],
+                [6564.15, 0.35]
+            ]
+        ) / 10
+
+        actual_calculate_blos = prepare_calculate_blos(
+            fcaha['profiles'][0][:, :, ind],
+            fcaha['wav'][ind] / 10,
+            ha_center_wave,
+            ha_center_wave - wave_range,
+            ha_center_wave + wave_range,
+            1.048,
+            transition_skip_list=transition_skip_list,
+            bin_factor=16,
+            errors=errors
+        )
+
+        vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
+
+        magha = np.fromfunction(vec_actual_calculate_blos, shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
+
+        if errors is not None:
+            sunpy.io.write_file(level4path / '{}_mag_ha_core_errors.fits'.format(a_mag_file.name), magha, dict(),
+                                overwrite=True)
+        else:
+            sunpy.io.write_file(level4path / '{}_mag_ha_core.fits'.format(a_mag_file.name), magha, dict(), overwrite=True)
+
+        wave_range = 1.5 / 10
+
+        actual_calculate_blos = prepare_calculate_blos(
+            fcaha['profiles'][0][:, :, ind],
+            fcaha['wav'][ind] / 10,
+            ha_center_wave,
+            ha_center_wave - wave_range,
+            ha_center_wave + wave_range,
+            1.048,
+            transition_skip_list=transition_skip_list,
+            bin_factor=16,
+            errors=errors
+        )
+
+        vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
+
+        magfha = np.fromfunction(vec_actual_calculate_blos,
+                                 shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
+
+        if errors is not None:
+            sunpy.io.write_file(level4path / '{}_mag_ha_full_line_errors.fits'.format(a_mag_file.name), magfha, dict(),
+                                overwrite=True)
+        else:
+            sunpy.io.write_file(level4path / '{}_mag_ha_full_line.fits'.format(a_mag_file.name), magfha, dict(),
+                            overwrite=True)
 
 
 def create_fov_plots(datestring, timestring, x1, y1, x2, y2, ticks, limit, points):
@@ -914,7 +933,7 @@ def plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, t
 
 
 if __name__ == '__main__':
-    # calculate_magnetic_field('20230527')
+    calculate_magnetic_field('20230603', errors=2)
 
     # datestring='20230603'
     # timestring='073616'
@@ -1084,29 +1103,29 @@ if __name__ == '__main__':
     #     points=points
     # )
 
-    datestring = '20230603'
-    timestring = '073616'
-    y1 = 14
-    y2 = 64
-    x1 = 4
-    x2 = 54
-    ticks = [-20, -15, -10, -5, 0, 5]
-    plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, ticks)
-
-    datestring = '20230601'
-    timestring = '081014'
-    y1 = 14
-    y2 = 64
-    x1 = 3
-    x2 = 53
-    ticks = [-20, -15, -10, -5, 0, 5]
-    plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, ticks)
-
-    datestring = '20230527'
-    timestring = '074428'
-    y1 = 15
-    y2 = 65
-    x1 = 3
-    x2 = 53
-    ticks = [-20, -15, -10, -5, 0, 5]
-    plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, ticks)
+    # datestring = '20230603'
+    # timestring = '073616'
+    # y1 = 14
+    # y2 = 64
+    # x1 = 4
+    # x2 = 54
+    # ticks = [-20, -15, -10, -5, 0, 5]
+    # plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, ticks)
+    #
+    # datestring = '20230601'
+    # timestring = '081014'
+    # y1 = 14
+    # y2 = 64
+    # x1 = 3
+    # x2 = 53
+    # ticks = [-20, -15, -10, -5, 0, 5]
+    # plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, ticks)
+    #
+    # datestring = '20230527'
+    # timestring = '074428'
+    # y1 = 15
+    # y2 = 65
+    # x1 = 3
+    # x2 = 53
+    # ticks = [-20, -15, -10, -5, 0, 5]
+    # plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, ticks)
