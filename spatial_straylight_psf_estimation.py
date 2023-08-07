@@ -71,7 +71,13 @@ def approximate_stray_light_and_sigma(
 
     b = 0.3428571428571427
 
-    max_fwhm = np.int64(np.round((kernel_size - b) / a, 0))
+    max_fwhm = np.amin(list(obs_image.shape))
+
+    # max_fwhm = np.int64(np.round((kernel_size - b) / a, 0))
+
+    # max_fwhm = 40
+
+    max_fwhm = np.int64(np.round((np.amin(list(obs_image.shape)) - b) / a, 0))
 
     fwhm = np.linspace(2, max_fwhm, 100)
 
@@ -100,11 +106,13 @@ def approximate_stray_light_and_sigma(
 
             kernel = scipy.ndimage.gaussian_filter(rev_kernel, sigma=_sig)
 
-            degraded_image = scipy.signal.oaconvolve(
-                k_value * hmi_image,
-                kernel, mode='same') + (
-                    (1 - k_value) * hmi_image
-            )
+            # degraded_image = scipy.signal.oaconvolve(
+            #     k_value * hmi_image,
+            #     kernel, mode='same') + (
+            #         (1 - k_value) * hmi_image
+            # )
+
+            degraded_image = k_value * scipy.signal.fftconvolve(hmi_image, kernel, mode='same') + (1 - k_value) * hmi_image
 
             result_images[i][j] = degraded_image
             corr_image = correct_for_straylight(obs_image, fwhm[i], k_value, kernel_size=kernel_size)
@@ -119,18 +127,26 @@ def approximate_stray_light_and_sigma(
                 #     (degraded_image - degraded_image.min()) / (degraded_image.max() - degraded_image.min())
                 # )
 
-                norm_obs = (obs_image - obs_image.min()) / (obs_image.max() - obs_image.min())
-                norm_degraded = (degraded_image - degraded_image.min()) / (degraded_image.max() - degraded_image.min())
-                result[i][j] = np.abs(
-                    np.mean(norm_obs[y1:y2, x1:x2]) - np.mean(norm_degraded[y3:y4, x3:x4])
+                norm_obs = obs_image #(obs_image - obs_image.min()) / (obs_image.max() - obs_image.min())
+                norm_degraded = degraded_image #(degraded_image - degraded_image.min()) / (degraded_image.max() - degraded_image.min())
+                result[i][j] = mean_squarred_error(
+                    np.mean(norm_obs[y3:y4, x3:x4]) / np.mean(norm_obs[y1:y2, x1:x2]),
+                    np.mean(norm_degraded[y3:y4, x3:x4]) / np.mean(norm_degraded[y1:y2, x1:x2])
                 )
+                # result[i][j] = mean_squarred_error(
+                #     np.mean(norm_obs[y3:y4, x3:x4]),
+                #     np.mean(norm_degraded[y3:y4, x3:x4])
+                # ) + mean_squarred_error(
+                #     np.mean(norm_obs[y1:y2, x1:x2]),
+                #     np.mean(norm_degraded[y1:y2, x1:x2])
+                # )
 
     sigma_ind, k_ind = np.unravel_index(np.argmin(result), result.shape)
 
-    corr_image = correct_for_straylight(obs_image, fwhm[sigma_ind], k_values[k_ind], kernel_size=kernel_size)
-    if corr_image.min() <= 0:
-        import ipdb;ipdb.set_trace()
-    return result, result_images, fwhm[sigma_ind], k_values[k_ind], sigma_ind, k_ind
+    # corr_image = correct_for_straylight(obs_image, fwhm[sigma_ind], k_values[k_ind], kernel_size=kernel_size)
+    # if corr_image.min() <= 0:
+    #     import ipdb;ipdb.set_trace()
+    return result, result_images, fwhm[sigma_ind], k_values[k_ind], sigma_ind, k_ind, max_fwhm
 
 
 def correct_for_straylight(image, fwhm, k_value, kernel_size=None):
@@ -158,13 +174,13 @@ def estimate_alpha_and_sigma(
         datestring, timestring, hmi_cont_file, hmi_ref_file,
 ):
 
-    # base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
+    base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
     #
     # base_path = Path('/mnt/f/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
     # base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
 
-    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/')
+    # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/')
 
     datepath = base_path / datestring
 
@@ -247,7 +263,7 @@ def estimate_alpha_and_sigma(
     if kernel_size_ha % 2 == 0:
         kernel_size_ha -= 1
 
-    plt.imshow(halpha_image[points_ha[1][1]:points_ha[2][1], points_ha[1][0]:points_ha[2][0]], cmap='gray', origin='lower')
+    plt.imshow(intensity_6563[points_ha[1][1]:points_ha[2][1], points_ha[1][0]:points_ha[2][0]], cmap='gray', origin='lower')
 
     compare_points_ha = np.array(plt.ginput(4, 600))
 
@@ -255,7 +271,7 @@ def estimate_alpha_and_sigma(
 
     plt.close('all')
 
-    result_ha, result_images_ha, fwhm_ha, k_value_ha, sigma_ind_ha, k_ind_ha = approximate_stray_light_and_sigma(
+    result_ha, result_images_ha, fwhm_ha, k_value_ha, sigma_ind_ha, k_ind_ha, max_fwhm_ha = approximate_stray_light_and_sigma(
         norm_halpha_image[points_ha[1][1]:points_ha[2][1], points_ha[1][0]:points_ha[2][0]],
         norm_intensity_6563[points_ha[1][1]:points_ha[2][1], points_ha[1][0]:points_ha[2][0]],
         kernel_size=kernel_size_ha,
@@ -324,7 +340,7 @@ def estimate_alpha_and_sigma(
         kernel_size_ca -= 1
 
     plt.imshow(
-        ca_image[points_ca[1][1]:points_ca[2][1], points_ca[1][0]:points_ca[2][0]],
+        intensity_8662[points_ca[1][1]:points_ca[2][1], points_ca[1][0]:points_ca[2][0]],
         cmap='gray',
         origin='lower'
     )
@@ -335,7 +351,7 @@ def estimate_alpha_and_sigma(
 
     plt.close('all')
 
-    result_ca, result_images_ca, fwhm_ca, k_value_ca, sigma_ind_ca, k_ind_ca = approximate_stray_light_and_sigma(
+    result_ca, result_images_ca, fwhm_ca, k_value_ca, sigma_ind_ca, k_ind_ca, max_fwhm_ca = approximate_stray_light_and_sigma(
         norm_ca_image[points_ca[1][1]:points_ca[2][1], points_ca[1][0]:points_ca[2][0]],
         norm_intensity_8662[points_ca[1][1]:points_ca[2][1], points_ca[1][0]:points_ca[2][0]],
         kernel_size=kernel_size_ca,
@@ -436,6 +452,10 @@ def estimate_alpha_and_sigma(
     fo['image_contrast_ca_improved'] = image_contrast_ca_improved
 
     fo['image_contrast_ca_original'] = image_contrast_ca_original
+
+    fo['max_fwhm_ha'] = max_fwhm_ha
+
+    fo['max_fwhm_ca'] = max_fwhm_ca
 
     fo.close()
 

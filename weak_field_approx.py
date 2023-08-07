@@ -93,7 +93,22 @@ def prepare_calculate_blos(
     errors=False,
     bin_factor=None
 ):
+    print_flag = False
     def actual_calculate_blos(i, j):
+        nonlocal print_flag
+
+        if print_flag is False:
+            print(obs.shape)
+            print(wavelength_arr)
+            print(lambda0)
+            print(lambda_range_min)
+            print(lambda_range_max)
+            print(g_eff)
+            print(transition_skip_list)
+            print(errors)
+            print(bin_factor)
+            print_flag = True
+
         i = int(i)
         j = int(j)
         stokes_I, stokes_V = obs[i, j, :, 0], obs[i, j, :, 3]
