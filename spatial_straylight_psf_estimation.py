@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import scipy.ndimage
 from prepare_data import *
+from skimage.restoration.deconvolution import wiener
 
 
 h = 6.62606957e-34
@@ -101,7 +102,7 @@ def approximate_stray_light_and_sigma(
         for j, k_value in enumerate(k_values):
 
             rev_kernel = np.zeros((kernel_size, kernel_size), dtype=np.float64)
-
+            
             rev_kernel[kernel_size // 2, kernel_size // 2] = 1
 
             kernel = scipy.ndimage.gaussian_filter(rev_kernel, sigma=_sig)
@@ -149,7 +150,7 @@ def approximate_stray_light_and_sigma(
     return result, result_images, fwhm[sigma_ind], k_values[k_ind], sigma_ind, k_ind, max_fwhm
 
 
-def correct_for_straylight(image, fwhm, k_value, kernel_size=None):
+def correct_for_straylight(image, fwhm, k_value, kernel_size=None, nsr=0.001):
 
     rev_kernel = np.zeros((kernel_size, kernel_size))
 
@@ -157,9 +158,16 @@ def correct_for_straylight(image, fwhm, k_value, kernel_size=None):
 
     kernel = scipy.ndimage.gaussian_filter(rev_kernel, sigma=fwhm / 2.355)
 
-    kernel[kernel_size//2, kernel_size//2] = 0
+    # kernel[kernel_size//2, kernel_size//2] = 0
 
-    convolved = scipy.signal.oaconvolve(image, kernel, mode='same')
+    # convolved = scipy.signal.oaconvolve(image, kernel, mode='same')
+
+    convolved = wiener(
+        image=image,
+        psf=kernel,
+        balance=nsr,
+        clip=False
+    )
 
     return (image - k_value * convolved) / (1 - k_value)
 
