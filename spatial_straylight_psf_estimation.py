@@ -144,13 +144,14 @@ def approximate_stray_light_and_sigma(
 
     sigma_ind, k_ind = np.unravel_index(np.argmin(result), result.shape)
 
-    # corr_image = correct_for_straylight(obs_image, fwhm[sigma_ind], k_values[k_ind], kernel_size=kernel_size)
-    # if corr_image.min() <= 0:
-    #     import ipdb;ipdb.set_trace()
     return result, result_images, fwhm[sigma_ind], k_values[k_ind], sigma_ind, k_ind, max_fwhm
 
 
-def correct_for_straylight(image, fwhm, k_value, kernel_size=None, nsr=0.001):
+def correct_for_straylight(image, fwhm, k_value, kernel_size=None):
+
+    snr = np.sqrt(image.mean() / 6 / 4.36)
+
+    nsnr = 1 / snr
 
     rev_kernel = np.zeros((kernel_size, kernel_size))
 
