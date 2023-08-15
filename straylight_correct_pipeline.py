@@ -126,6 +126,7 @@ def prep_optimize_func(catalog):
 
     return optimize_func_residual
 
+
 cw = np.asarray([6563, 8662])
 cont = []
 for ii in cw:
@@ -586,21 +587,21 @@ def convert_dat_to_png(base_path):
 
 
 if __name__ == '__main__':
-    # datestring = '20230603'
-    # cont_wave_ha = -1
-    # fac_ind_s_ha = 30
-    # fac_ind_e_ha = -30
-    # generate_stic_input_files_caller(
-    #     datestring,
-    #     cont_wave_ha,
-    #     fac_ind_s_ha,
-    #     fac_ind_e_ha,
-    #     mode='ca',
-    #     timestring_only='092458'
-    # )
+    datestring = '20230603'
+    cont_wave_ha = -1
+    fac_ind_s_ha = 30
+    fac_ind_e_ha = -30
+    generate_stic_input_files_caller(
+        datestring,
+        cont_wave_ha,
+        fac_ind_s_ha,
+        fac_ind_e_ha,
+        mode='ca',
+        timestring_only='092458'
+    )
 
     # merge_ca_ha_data()
 
     # convert_dat_to_png('/mnt/f/Harsh/CourseworkRepo/Tip Tilt Data/Closed Loop/')
 
-    resample_residual_data()
+    # resample_residual_data()

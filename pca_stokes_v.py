@@ -2,7 +2,7 @@ import sys
 sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
 # sys.path.insert(2, '/home/harsh/CourseworkRepo/WFAComparison')
 # sys.path.insert(1, '/mnt/f/Harsh/CourseworkRepo/stic/example')
-# sys.path.insert(1, 'F:\\Harsh\\CourseworkRepo\\stic\\example')
+sys.path.insert(1, 'F:\\Harsh\\CourseworkRepo\\stic\\example')
 from sklearn.decomposition import PCA
 import h5py
 import sunpy.io
@@ -94,15 +94,17 @@ def do_pca(all_data, ind):
 def pca_stokes_params(datestring):
     # base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
 
-    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+    # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+
+    base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
 
     datepath = base_path / datestring
 
-    level4path = datepath / 'Level-4'
+    level8path = datepath / 'Level-8'
 
-    all_files = datepath.glob('**/*')
+    all_files = level8path.glob('**/*')
 
-    all_mag_files = [file for file in all_files if file.name.startswith('aligned') and file.name.endswith('nc')]
+    all_mag_files = [file for file in all_files if file.name.startswith('aligned') and file.name.endswith('.nc')]
 
     for a_mag_file in all_mag_files:
         fcaha = h5py.File(a_mag_file, 'r')
@@ -139,9 +141,9 @@ def pca_stokes_params(datestring):
         all_profiles = ha + ca
 
         all_profiles.write(
-            level4path / '{}_pca.nc'.format(a_mag_file.name)
+            level8path / '{}_pca.nc'.format(a_mag_file.name)
         )
 
 
 if __name__ == '__main__':
-    pca_stokes_params('20230525')
+    pca_stokes_params('20230601')

@@ -92,57 +92,6 @@ def approximate_stray_light_and_sigma(
     return result, result_atlas, fwhm, sigma, k_values
 
 
-# @nb.jit(nopython=True)
-# def speeduploop(fwhm, k_values, result_list):
-#     min_error = np.Inf
-#     r_fwhm = 0.0
-#     r_sigma = 0.0
-#     r_k1 = 0.0
-#     r_k2 = 0.0
-#     r_k3 = 0.0
-#     r_i0 = 0
-#     r_i1 = 0
-#     r_i2 = 0
-#     r_i3 = 0
-#
-#     nt = 0
-#     total_loop = 50 * 100 * 100 * 100
-#     total_percentage_done = 0
-#     print ("Percentage Done: %.1lf", total_percentage_done)
-#     for i0, a_fwhm in enumerate(fwhm):
-#         for i1, k1 in enumerate(k_values):
-#             for i2, k2 in enumerate(k_values):
-#                 for i3, k3 in enumerate(k_values):
-#
-#                     error1 = result_list[0][i0, i1]
-#                     error2 = result_list[1][i0, i2]
-#                     error3 = result_list[2][i0, i3]
-#
-#                     error = error1 + error2 + error3
-#
-#                     if error < min_error:
-#                         min_error = error
-#                         r_fwhm = a_fwhm
-#                         r_sigma = r_fwhm / 2.355
-#                         r_k1 = k1
-#                         r_k2 = k2
-#                         r_k3 = k3
-#                         r_i0 = i0
-#                         r_i1 = i1
-#                         r_i2 = i2
-#                         r_i3 = i3
-#
-#                     nt += 1
-#
-#                     percentage_done = np.round(nt * 100/total_loop, 1)
-#
-#                     if percentage_done - total_percentage_done > 0.5:
-#                         total_percentage_done = percentage_done
-#                         print ("Percentage Done: %.1lf", total_percentage_done)
-#
-#     return r_i0, r_i1, r_i2, r_i3, r_fwhm, r_sigma, r_k1, r_k2, r_k3
-
-
 def approximate_stray_light_and_sigma_multiple_lines(
         line_profile_list,
         atlas_profile_list,
