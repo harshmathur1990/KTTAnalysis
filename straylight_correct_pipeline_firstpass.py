@@ -265,12 +265,14 @@ def calculate_straylight_from_median_profile(
 
     median_profile = np.loadtxt(medianprofile_path)
 
-    level5path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes') / datestring / 'Level-5'
-
-    f = h5py.File(level5path / 'Spatial_straylight_correction_{}_{}.h5'.format(datestring, timestring), 'r')
+    # if len(median_profile.shape) > 1:
+    #     median_profile = np.median(median_profile, 0)
+    #     np.savetxt(medianprofile_path, median_profile)
 
     if wave_indice is None:
         wave_indice = [0, median_profile.size]
+
+    # median_profile = median_profile[wave_indice[0]:wave_indice[-1]] / median_profile[wave_indice[0]:wave_indice[-1]][cont_wave]
 
     catalog = np.loadtxt(catalog_file)
 
@@ -279,22 +281,32 @@ def calculate_straylight_from_median_profile(
     params = Parameters()
 
     if catalog[0, 0] < 6570:
-        median_profile /= (1 - f['k_value_ha'][()])
         plt.close('all')
         plt.plot(median_profile)
         point = np.array(plt.ginput(2, 600))
         a, b = np.polyfit([point[0][0], point[1][0]], [6562.8, 6560.57], 1)
         wave = np.arange(median_profile.size) * a + b
-
     else:
-        median_profile /= (1 - f['k_value_ca'][()])
+        # params.add('wave_0', brute_step=0.1, min=8660, max=8665)
+        # params.add('disp', brute_step=0.001, min=0.003, max=0.007)
+        #
+        # out = minimize(
+        #     optimize_func_residual,
+        #     params,
+        #     args=(
+        #         np.arange(median_profile.size),
+        #         median_profile
+        #     ),
+        #     method='brute'
+        # )
+
+        # wave = np.arange(median_profile.size) * out.params['disp'].value + out.params['wave_0'].value
+
         plt.close('all')
         plt.plot(median_profile)
         point = np.array(plt.ginput(3, 600))
         a, b = np.polyfit([point[0][0], point[1][0], point[2][0]], [8661.908, 8661.994, 8662.176], 1)
         wave = np.arange(median_profile.size) * a + b
-
-    f.close()
 
     if catalog[0, 0] < 6570:
         wavelength = 6562.8
@@ -431,12 +443,8 @@ def generate_stic_input_files_caller(datestring, cont_wave_ha=0, fac_ind_s_ha=No
     #     '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/'
     # )
 
-    # base_path = Path(
-    #     '/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes'
-    # )
-
     base_path = Path(
-        'C:\\Work Things\\InstrumentalUncorrectedStokes'
+        '/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes'
     )
 
     # catalog_file_8662 = '/home/harsh/CourseworkRepo/KTTAnalysis/catalog_8662.txt'
@@ -447,25 +455,23 @@ def generate_stic_input_files_caller(datestring, cont_wave_ha=0, fac_ind_s_ha=No
     #
     # synth_file_8662 = '/home/harsh/CourseworkRepo/KTTAnalysis/falc_output_CaII8662_catalog.nc'
 
-    synth_catalog_base = Path('F:\\Harsh\\CourseworkRepo\\KTTAnalysis')
+    synth_file_6563 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/falc_output_halpha_catalog.nc'
 
-    synth_file_6563 = synth_catalog_base / 'falc_output_halpha_catalog.nc'
+    synth_file_8662 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/falc_output_CaII8662_catalog.nc'
 
-    synth_file_8662 = synth_catalog_base / 'falc_output_CaII8662_catalog.nc'
+    catalog_file_8662 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/catalog_8662.txt'
 
-    catalog_file_8662 = synth_catalog_base / 'catalog_8662.txt'
-
-    catalog_file_6563 = synth_catalog_base / 'catalog_6563.txt'
+    catalog_file_6563 = '/mnt/f/Harsh/CourseworkRepo/KTTAnalysis/catalog_6563.txt'
 
     datepath = base_path / datestring
 
-    level6path = datepath / 'Level-6'
+    level2path = datepath / 'Level-2'
 
-    level7path = datepath / 'Level-7'
+    level3path = datepath / 'Level-3'
 
-    level6path.mkdir(parents=True, exist_ok=True)
+    level2path.mkdir(parents=True, exist_ok=True)
 
-    level7path.mkdir(parents=True, exist_ok=True)
+    level3path.mkdir(parents=True, exist_ok=True)
 
     delete_files = True
 
@@ -475,7 +481,7 @@ def generate_stic_input_files_caller(datestring, cont_wave_ha=0, fac_ind_s_ha=No
     if delete_files:
         process = subprocess.Popen(
             'rm -rf *',
-            cwd=str(level7path),
+            cwd=str(level3path),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             shell=True
@@ -483,7 +489,7 @@ def generate_stic_input_files_caller(datestring, cont_wave_ha=0, fac_ind_s_ha=No
 
         stdout, stderr = process.communicate()
 
-    all_files = level6path.glob('**/*')
+    all_files = level2path.glob('**/*')
 
     fits_files = [file for file in all_files if file.name.endswith('.fits') and file.name.startswith('v2u')]
 
@@ -514,7 +520,7 @@ def generate_stic_input_files_caller(datestring, cont_wave_ha=0, fac_ind_s_ha=No
                     medprofpath,
                     catalog_file_6563,
                     synth_file_6563,
-                    level7path,
+                    level3path,
                     datestring,
                     timestring,
                     wave_indice=wave_indice,
@@ -525,7 +531,7 @@ def generate_stic_input_files_caller(datestring, cont_wave_ha=0, fac_ind_s_ha=No
                 )
 
             generate_stic_input_files(fits_file, r_fwhm_ha, r_sigma_ha, r_straylight_ha, multiplicative_factor_ha, wave_ha, 'Halpha',
-                                      stic_cgs_calib_factor_ha, norm_median_stray_ha, level7path, datestring, timestring, wave_indice)
+                                      stic_cgs_calib_factor_ha, norm_median_stray_ha, level3path, datestring, timestring, wave_indice)
 
         else:
             if mode is not None and mode == 'ha':
@@ -552,7 +558,7 @@ def generate_stic_input_files_caller(datestring, cont_wave_ha=0, fac_ind_s_ha=No
                     medprofpath,
                     catalog_file_8662,
                     synth_file_8662,
-                    level7path,
+                    level3path,
                     datestring,
                     timestring,
                     wave_indice,
@@ -560,7 +566,7 @@ def generate_stic_input_files_caller(datestring, cont_wave_ha=0, fac_ind_s_ha=No
                 )
 
             generate_stic_input_files(fits_file, r_fwhm_ca, r_sigma_ca, r_straylight_ca, multiplicative_factor_ca, wave_ca, 'CaII8662',
-                                      stic_cgs_calib_factor_ca, norm_median_stray_ca, level7path, datestring, timestring, wave_indice)
+                                      stic_cgs_calib_factor_ca, norm_median_stray_ca, level3path, datestring, timestring, wave_indice)
 
 def convert_dat_to_png(base_path):
     if isinstance(base_path, str):
@@ -581,7 +587,7 @@ def convert_dat_to_png(base_path):
 
 
 if __name__ == '__main__':
-    datestring = '20230527'
+    datestring = '20230603'
     cont_wave_ha = -1
     fac_ind_s_ha = 30
     fac_ind_e_ha = -30
@@ -591,7 +597,7 @@ if __name__ == '__main__':
         fac_ind_s_ha,
         fac_ind_e_ha,
         mode='ca',
-        timestring_only='074428'
+        timestring_only='092458'
     )
 
     # merge_ca_ha_data()
