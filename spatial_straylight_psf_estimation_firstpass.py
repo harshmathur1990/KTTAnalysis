@@ -147,11 +147,89 @@ def approximate_stray_light_and_sigma(
     return result, result_images, fwhm[sigma_ind], k_values[k_ind], sigma_ind, k_ind, max_fwhm
 
 
-def correct_for_straylight(image, fwhm, k_value, kernel_size=None):
+def approximate_stray_light_and_sigma_alternate(
+        obs_image,
+        hmi_image,
+        kernel_size,
+        y1,
+        y2,
+        x1,
+        x2,
+        y3,
+        y4,
+        x3,
+        x4,
+        normalize_points,
+        stic_cgs_calib_factor=1,
+        gain_factor=1,
+        regularization=1
+):
+    a = 3.457142857142857
 
-    snr = np.sqrt(image.mean() / 6 / 4.36)
+    b = 0.3428571428571427
 
-    nsnr = 1 / snr
+    max_fwhm = np.int64(np.round((kernel_size - b) / a, 0))
+
+    # max_fwhm = np.amin(list(obs_image.shape))
+
+    fwhm = np.linspace(2, max_fwhm, 100)
+
+    k_values = np.arange(0, 1, 0.01)
+
+    result = np.zeros(shape=(fwhm.size, k_values.size))
+
+    result_images = np.zeros(
+        shape=(
+            fwhm.size,
+            k_values.size,
+            obs_image.shape[0],
+            obs_image.shape[1]
+        ),
+        dtype=np.float64
+    )
+
+    for i, _fwhm in enumerate(fwhm):
+        for j, k_value in enumerate(k_values):
+
+            corr_image = correct_for_straylight(
+                obs_image,
+                _fwhm,
+                k_value,
+                kernel_size=kernel_size,
+                stic_cgs_calib_factor=stic_cgs_calib_factor,
+                gain_factor=gain_factor,
+                regularization=regularization
+            )
+
+            if corr_image.min() <= 0:
+                result[i][j] = np.inf
+            else:
+                norm_corr_image = corr_image / corr_image[normalize_points[0][1], normalize_points[0][0]]
+                norm_hmi_image = hmi_image / hmi_image[normalize_points[0][1], normalize_points[0][0]]
+                result[i][j] = mean_squarred_error(
+                    np.mean(norm_corr_image[y3:y4, x3:x4]) / np.mean(norm_corr_image[y1:y2, x1:x2]),
+                    np.mean(norm_hmi_image[y3:y4, x3:x4]) / np.mean(norm_hmi_image[y1:y2, x1:x2])
+                )
+                result_images[i, j] = corr_image
+
+    fwhm_ind, k_ind = np.unravel_index(np.argmin(result), result.shape)
+
+    corrected_image = result_images[fwhm_ind, k_ind]
+
+    image_contrast_old = np.mean(obs_image[y3:y4, x3:x4]) / np.mean(obs_image[y1:y2, x1:x2])
+
+    image_contrast_new = np.mean(corrected_image[y3:y4, x3:x4]) / np.mean(corrected_image[y1:y2, x1:x2])
+
+    hmi_contrast = np.mean(hmi_image[y3:y4, x3:x4]) / np.mean(hmi_image[y1:y2, x1:x2])
+
+    return result, result_images, fwhm[fwhm_ind], k_values[k_ind], fwhm_ind, k_ind, max_fwhm, image_contrast_old, image_contrast_new, hmi_contrast
+
+
+def correct_for_straylight(image, fwhm, k_value, kernel_size=None, stic_cgs_calib_factor=1, gain_factor=1, regularization=1):
+
+    # snr = np.sqrt(image.mean() / 6 / 4.36)
+
+    # nsnr = 1 / snr
 
     rev_kernel = np.zeros((kernel_size, kernel_size))
 
@@ -159,18 +237,22 @@ def correct_for_straylight(image, fwhm, k_value, kernel_size=None):
 
     kernel = scipy.ndimage.gaussian_filter(rev_kernel, sigma=fwhm / 2.355)
 
-    # kernel[kernel_size//2, kernel_size//2] = 0
+    kernel[kernel_size//2, kernel_size//2] = 0
 
-    # convolved = scipy.signal.oaconvolve(image, kernel, mode='same')
+    convolved = scipy.signal.oaconvolve(image, kernel, mode='same')
 
-    convolved = wiener(
-        image=image,
-        psf=kernel,
-        balance=nsr,
-        clip=False
-    )
+    # convolved = wiener(
+    #     image=image,
+    #     psf=kernel,
+    #     balance=nsr,
+    #     clip=False
+    # )
 
-    return (image - k_value * convolved) / (1 - k_value)
+    noise = np.sqrt(
+        image * stic_cgs_calib_factor / gain_factor
+    ) * gain_factor
+
+    return ((image - k_value * convolved) / (1 - k_value)) - ((regularization * noise) / ((1 - k_value) * stic_cgs_calib_factor))
 
 
 def get_image_contrast(image):
@@ -183,7 +265,7 @@ def estimate_alpha_and_sigma(
         datestring, timestring, hmi_cont_file, hmi_ref_file,
 ):
 
-    base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
+    # base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
     #
     # base_path = Path('/mnt/f/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
@@ -191,9 +273,13 @@ def estimate_alpha_and_sigma(
 
     # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/')
 
+    base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
+
     datepath = base_path / datestring
 
     level4path = datepath / 'Level-4'
+
+    level3path = datepath / 'Level-3'
 
     data, header = sunpy.io.read_file(level4path / hmi_cont_file)[1]
 
@@ -235,7 +321,7 @@ def estimate_alpha_and_sigma(
 
     vec_correct_for_straylight = np.vectorize(
         correct_for_straylight,
-        signature='(x,y),(),(),()->(x,y)'
+        signature='(x,y),(),(),(),(),(),()->(x,y)'
     )
 
     planck_function_656_nm = prepare_planck_function(6563)
@@ -252,13 +338,7 @@ def estimate_alpha_and_sigma(
     plt.clf()
     plt.cla()
 
-    divide_factor_ha = halpha_image[points_ha[0][1], points_ha[0][0]]
-
-    norm_halpha_image = halpha_image / divide_factor_ha
-
     intensity_6563 = planck_function_656_nm(temperature_map)
-
-    norm_intensity_6563 = intensity_6563 / intensity_6563[points_ha[0][1], points_ha[0][0]]
 
     kernel_size_ha = np.int64(
         np.amin(
@@ -280,9 +360,35 @@ def estimate_alpha_and_sigma(
 
     plt.close('all')
 
-    result_ha, result_images_ha, fwhm_ha, k_value_ha, sigma_ind_ha, k_ind_ha, max_fwhm_ha = approximate_stray_light_and_sigma(
-        norm_halpha_image[points_ha[1][1]:points_ha[2][1], points_ha[1][0]:points_ha[2][0]],
-        norm_intensity_6563[points_ha[1][1]:points_ha[2][1], points_ha[1][0]:points_ha[2][0]],
+    # result_ha, result_images_ha, fwhm_ha, k_value_ha, sigma_ind_ha, k_ind_ha, max_fwhm_ha = approximate_stray_light_and_sigma(
+    #     norm_halpha_image[points_ha[1][1]:points_ha[2][1], points_ha[1][0]:points_ha[2][0]],
+    #     norm_intensity_6563[points_ha[1][1]:points_ha[2][1], points_ha[1][0]:points_ha[2][0]],
+    #     kernel_size=kernel_size_ha,
+    #     y1=compare_points_ha[0][1],
+    #     y2=compare_points_ha[1][1],
+    #     x1=compare_points_ha[0][0],
+    #     x2=compare_points_ha[1][0],
+    #     y3=compare_points_ha[2][1],
+    #     y4=compare_points_ha[3][1],
+    #     x3=compare_points_ha[2][0],
+    #     x4=compare_points_ha[3][0]
+    # )
+
+    wave_straylight_file = level3path / 'Halpha_{}_{}_stray_corrected.h5'.format(datestring, timestring)
+
+    fw = h5py.File(wave_straylight_file, 'r')
+
+    stic_cgs_calib_factor_ha = fw['stic_cgs_calib_factor'][()]
+
+    fw.close()
+
+    gain_factor_ha = 6 * 4.36
+
+    regularization_ha = 1
+
+    result_ha, result_images_ha, fwhm_ha, k_value_ha, sigma_ind_ha, k_ind_ha, max_fwhm_ha, image_contrast_ha_old, image_contrast_ha_new, hmi_contrast_ha = approximate_stray_light_and_sigma_alternate(
+        obs_image=halpha_image[points_ha[1][1]:points_ha[2][1], points_ha[1][0]:points_ha[2][0]],
+        hmi_image=intensity_6563[points_ha[1][1]:points_ha[2][1], points_ha[1][0]:points_ha[2][0]],
         kernel_size=kernel_size_ha,
         y1=compare_points_ha[0][1],
         y2=compare_points_ha[1][1],
@@ -291,7 +397,11 @@ def estimate_alpha_and_sigma(
         y3=compare_points_ha[2][1],
         y4=compare_points_ha[3][1],
         x3=compare_points_ha[2][0],
-        x4=compare_points_ha[3][0]
+        x4=compare_points_ha[3][0],
+        normalize_points=points_ha,
+        stic_cgs_calib_factor=stic_cgs_calib_factor_ha,
+        gain_factor=gain_factor_ha,
+        regularization=regularization_ha
     )
 
     while True:
@@ -303,7 +413,10 @@ def estimate_alpha_and_sigma(
                 ),
                 fwhm_ha,
                 k_value_ha,
-                kernel_size=kernel_size_ha
+                kernel_size=kernel_size_ha,
+                stic_cgs_calib_factor=stic_cgs_calib_factor_ha,
+                gain_factor=gain_factor_ha,
+                regularization=regularization_ha
             ),
             axes=(1, 2, 0)
         )
@@ -328,13 +441,7 @@ def estimate_alpha_and_sigma(
     plt.clf()
     plt.cla()
 
-    divide_factor_ca = ca_image[points_ca[0][1], points_ca[0][0]]
-
-    norm_ca_image = ca_image / divide_factor_ca
-
     intensity_8662 = planck_function_866_nm(temperature_map)
-
-    norm_intensity_8662 = intensity_8662 / intensity_8662[points_ca[0][1], points_ca[0][0]]
 
     kernel_size_ca = np.int64(
         np.amin(
@@ -359,10 +466,38 @@ def estimate_alpha_and_sigma(
     compare_points_ca = compare_points_ca.astype(np.int64)
 
     plt.close('all')
+    plt.clf()
+    plt.cla()
 
-    result_ca, result_images_ca, fwhm_ca, k_value_ca, sigma_ind_ca, k_ind_ca, max_fwhm_ca = approximate_stray_light_and_sigma(
-        norm_ca_image[points_ca[1][1]:points_ca[2][1], points_ca[1][0]:points_ca[2][0]],
-        norm_intensity_8662[points_ca[1][1]:points_ca[2][1], points_ca[1][0]:points_ca[2][0]],
+    wave_straylight_file = level3path / 'CaII8662_{}_{}_stray_corrected.h5'.format(datestring, timestring)
+
+    fw = h5py.File(wave_straylight_file, 'r')
+
+    stic_cgs_calib_factor_ca = fw['stic_cgs_calib_factor'][()]
+
+    fw.close()
+
+    gain_factor_ca = 2 * 9.36
+
+    regularization_ca = 1
+
+    # result_ca, result_images_ca, fwhm_ca, k_value_ca, sigma_ind_ca, k_ind_ca, max_fwhm_ca = approximate_stray_light_and_sigma(
+    #     norm_ca_image[points_ca[1][1]:points_ca[2][1], points_ca[1][0]:points_ca[2][0]],
+    #     norm_intensity_8662[points_ca[1][1]:points_ca[2][1], points_ca[1][0]:points_ca[2][0]],
+    #     kernel_size=kernel_size_ca,
+    #     y1=compare_points_ca[0][1],
+    #     y2=compare_points_ca[1][1],
+    #     x1=compare_points_ca[0][0],
+    #     x2=compare_points_ca[1][0],
+    #     y3=compare_points_ca[2][1],
+    #     y4=compare_points_ca[3][1],
+    #     x3=compare_points_ca[2][0],
+    #     x4=compare_points_ca[3][0]
+    # )
+
+    result_ca, result_images_ca, fwhm_ca, k_value_ca, sigma_ind_ca, k_ind_ca, max_fwhm_ca, image_contrast_ca_old, image_contrast_ca_new, hmi_contrast_ca = approximate_stray_light_and_sigma_alternate(
+        ca_image[points_ca[1][1]:points_ca[2][1], points_ca[1][0]:points_ca[2][0]],
+        intensity_8662[points_ca[1][1]:points_ca[2][1], points_ca[1][0]:points_ca[2][0]],
         kernel_size=kernel_size_ca,
         y1=compare_points_ca[0][1],
         y2=compare_points_ca[1][1],
@@ -371,8 +506,22 @@ def estimate_alpha_and_sigma(
         y3=compare_points_ca[2][1],
         y4=compare_points_ca[3][1],
         x3=compare_points_ca[2][0],
-        x4=compare_points_ca[3][0]
+        x4=compare_points_ca[3][0],
+        normalize_points=points_ca,
+        stic_cgs_calib_factor=stic_cgs_calib_factor_ca,
+        gain_factor=gain_factor_ca,
+        regularization=regularization_ca
     )
+
+    plt.imshow(f['profiles'][0, :, :, ind[800:][8], 0], cmap='gray', origin='lower')
+
+    points_ca_correct = np.array(plt.ginput(2, 600))
+
+    points_ca_correct = points_ca_correct.astype(np.int64)
+
+    plt.close('all')
+    plt.clf()
+    plt.cla()
 
     while True:
         corrected_ca_intensity_data = np.transpose(
@@ -383,46 +532,22 @@ def estimate_alpha_and_sigma(
                 ),
                 fwhm_ca,
                 k_value_ca,
-                kernel_size=kernel_size_ca
+                kernel_size=kernel_size_ca,
+                stic_cgs_calib_factor=stic_cgs_calib_factor_ca,
+                gain_factor=gain_factor_ca,
+                regularization=regularization_ca
             ),
             axes=(1, 2, 0)
         )
 
-        if corrected_ca_intensity_data.min() <= 0:
+        # if corrected_ca_intensity_data.min() <= 0:
+        if np.min(corrected_ca_intensity_data[points_ca_correct[0][1]:points_ca_correct[1][1], points_ca_correct[0][0]:points_ca_correct[1][0]]) <= 0:
             k_value_ca -= 0.01
             sys.stdout.write('Decreasing k_value_ca to {}\n'.format(k_value_ca))
         else:
             break
 
-    vec_get_image_contrast = np.vectorize(get_image_contrast, signature='(x,y)->()')
-
-    image_contrast_halpha_improved = vec_get_image_contrast(
-        np.transpose(
-            corrected_halpha_intensity_data,
-            axes=(2, 0, 1)
-        )
-    )
-
-    image_contrast_halpha_original = vec_get_image_contrast(
-        np.transpose(
-            f['profiles'][0, :, :, ind[0:800], 0],
-            axes=(2, 0, 1)
-        )
-    )
-
-    image_contrast_ca_improved = vec_get_image_contrast(
-        np.transpose(
-            corrected_ca_intensity_data,
-            axes=(2, 0, 1)
-        )
-    )
-
-    image_contrast_ca_original = vec_get_image_contrast(
-        np.transpose(
-            f['profiles'][0, :, :, ind[800:], 0],
-            axes=(2, 0, 1)
-        )
-    )
+    corrected_ca_intensity_data[np.where(corrected_ca_intensity_data <= 0)] = 0
 
     fo = h5py.File(level4path / 'Spatial_straylight_correction_{}_{}.h5'.format(datestring, timestring), 'w')
 
@@ -454,17 +579,37 @@ def estimate_alpha_and_sigma(
 
     fo['k_ind_ca'] = k_ind_ca
 
-    fo['image_contrast_halpha_improved'] = image_contrast_halpha_improved
+    fo['image_contrast_halpha_improved'] = image_contrast_ha_new
 
-    fo['image_contrast_halpha_original'] = image_contrast_halpha_original
+    fo['image_contrast_halpha_original'] = image_contrast_ha_old
 
-    fo['image_contrast_ca_improved'] = image_contrast_ca_improved
+    fo['image_contrast_ca_improved'] = image_contrast_ca_new
 
-    fo['image_contrast_ca_original'] = image_contrast_ca_original
+    fo['image_contrast_ca_original'] = image_contrast_ca_old
+
+    fo['hmi_contrast_ha'] = hmi_contrast_ha
+
+    fo['hmi_contrast_ca'] = hmi_contrast_ca
 
     fo['max_fwhm_ha'] = max_fwhm_ha
 
     fo['max_fwhm_ca'] = max_fwhm_ca
+
+    fo['kernel_size_ha'] = kernel_size_ha
+
+    fo['kernel_size_ca'] = kernel_size_ca
+
+    fo['stic_cgs_calib_factor_ha'] = stic_cgs_calib_factor_ha
+
+    fo['gain_factor_ha'] = gain_factor_ha
+
+    fo['regularization_ha'] = regularization_ha
+
+    fo['stic_cgs_calib_factor_ca'] = stic_cgs_calib_factor_ca
+
+    fo['gain_factor_ca'] = gain_factor_ca
+
+    fo['regularization_ca'] = regularization_ca
 
     fo.close()
 

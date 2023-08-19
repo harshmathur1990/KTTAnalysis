@@ -93,7 +93,7 @@ def prepare_calculate_blos(
     errors=False,
     bin_factor=None
 ):
-    print_flag = False
+    print_flag = True
     def actual_calculate_blos(i, j):
         nonlocal print_flag
 

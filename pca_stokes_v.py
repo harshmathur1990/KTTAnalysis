@@ -22,7 +22,7 @@ def do_pca(all_data, ind):
     pca = PCA(n_components=50)
 
     nComps = 0
-    nCompe = 10
+    nCompe = 5
     Xhat = np.dot(pca.fit_transform(pca_stokes_V)[:, nComps:nCompe], pca.components_[nComps:nCompe, :])
     Xhat += mu
 
@@ -37,7 +37,7 @@ def do_pca(all_data, ind):
     pca = PCA(n_components=50)
 
     nComps = 0
-    nCompe = 10
+    nCompe = 5
     Xhat = np.dot(pca.fit_transform(pca_stokes_Q)[:, nComps:nCompe], pca.components_[nComps:nCompe, :])
     Xhat += mu
 
@@ -52,7 +52,7 @@ def do_pca(all_data, ind):
     pca = PCA(n_components=50)
 
     nComps = 0
-    nCompe = 10
+    nCompe = 5
     Xhat = np.dot(pca.fit_transform(pca_stokes_U)[:, nComps:nCompe], pca.components_[nComps:nCompe, :])
     Xhat += mu
 
@@ -67,7 +67,7 @@ def do_pca(all_data, ind):
     pca = PCA(n_components=50)
 
     nComps = 0
-    nCompe = 10
+    nCompe = 5
     Xhat = np.dot(pca.fit_transform(pca_stokes_I)[:, nComps:nCompe], pca.components_[nComps:nCompe, :])
     Xhat += mu
 
@@ -100,11 +100,11 @@ def pca_stokes_params(datestring):
 
     datepath = base_path / datestring
 
-    level8path = datepath / 'Level-8'
+    level8path = datepath / 'Level-4'
 
     all_files = level8path.glob('**/*')
 
-    all_mag_files = [file for file in all_files if file.name.startswith('aligned') and file.name.endswith('.nc')]
+    all_mag_files = [file for file in all_files if file.name.startswith('aligned') and file.name.endswith('spatial_straylight_corrected.nc')]
 
     for a_mag_file in all_mag_files:
         fcaha = h5py.File(a_mag_file, 'r')
@@ -146,4 +146,4 @@ def pca_stokes_params(datestring):
 
 
 if __name__ == '__main__':
-    pca_stokes_params('20230601')
+    pca_stokes_params('20230603')

@@ -447,7 +447,6 @@ def estimate_alpha_and_sigma(
         x4=compare_points_ha[3][0]
     )
 
-
     top_beam_ha, bottom_beam_ha = read_file_for_observations(
         level0path / 'observation_data_{}_DETECTOR_1.fits'.format(timestring),
         t1_HA, t2_HA, t3_HA, t4_HA, cut_shape_HA
@@ -778,6 +777,513 @@ def estimate_alpha_and_sigma(
     fo.close()
 
 
+def estimate_alpha_and_sigma_alternate(
+        datestring, timestring, hmi_cont_file, hmi_ref_file,
+        BIN_FACTOR_Y,
+        CDELTY,
+        im_top_ha,
+        im_bot_ha,
+        t1_HA,
+        t2_HA,
+        t3_HA,
+        t4_HA,
+        cut_shape_HA,
+        BIN_FACTOR_X_HA,
+        CDELTX_HA,
+        im_top_ca,
+        im_bot_ca,
+        t1_CA,
+        t2_CA,
+        t3_CA,
+        t4_CA,
+        cut_shape_CA,
+        BIN_FACTOR_X_CA,
+        CDELTX_CA,
+        offset_1_y,
+        offset_1_x,
+        offset_2_y,
+        offset_2_x
+):
+
+    # base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
+    #
+    # base_path = Path('/mnt/f/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+
+    base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
+
+    # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/')
+
+    datepath = base_path / datestring
+
+    level4path = datepath / 'Level-4'
+
+    level5path = datepath / 'Level-5-alternate'
+
+    level0path = datepath / 'Level-0'
+
+    data, header = sunpy.io.read_file(level4path / hmi_cont_file)[1]
+
+    hmi_map = sunpy.map.Map(data, header)
+
+    aiamap = register(hmi_map)
+
+    planck_function_500_nm = prepare_planck_function(6173)
+
+    intensity_6173 = planck_function_500_nm(5000)
+
+    plt.imshow(aiamap.data, cmap='gray', origin='lower')
+
+    points_hmi = np.array(plt.ginput(2, 600))
+
+    points_hmi = points_hmi.astype(np.int64)
+
+    plt.close('all')
+    plt.clf()
+    plt.cla()
+
+    calibcount = np.median(aiamap.data[points_hmi[0][1]:points_hmi[1][1], points_hmi[0][0]:points_hmi[1][0]])
+
+    calib_factor = intensity_6173 / calibcount
+
+    data, header = sunpy.io.read_file(level4path / hmi_ref_file)[0]
+
+    data *= calib_factor
+
+    get_temperature_from_intensity_6173_angs = prepare_temperature_from_intensity(6173)
+
+    temperature_map = get_temperature_from_intensity_6173_angs(data)
+
+    vec_correct_for_straylight = np.vectorize(
+        correct_for_straylight,
+        signature='(x,y),(),(),()->(x,y)'
+    )
+
+    planck_function_656_nm = prepare_planck_function(6563)
+
+    top_beam_ha, bottom_beam_ha = read_file_for_observations(
+        level0path / 'observation_data_{}_DETECTOR_1.fits'.format(timestring),
+        t1_HA, t2_HA, t3_HA, t4_HA, cut_shape_HA
+    )
+
+    y1 = 0
+    y2 = (top_beam_ha.shape[1] // BIN_FACTOR_Y) * BIN_FACTOR_Y
+    x1 = 0
+    x2 = (top_beam_ha.shape[2] // BIN_FACTOR_X_HA) * BIN_FACTOR_X_HA
+    binned_top_beam_ha = np.mean(
+        top_beam_ha[:, y1:y2, x1:x2, :].reshape(
+            top_beam_ha.shape[0], top_beam_ha.shape[1] // BIN_FACTOR_Y, BIN_FACTOR_Y,
+                                  top_beam_ha.shape[2] // BIN_FACTOR_X_HA, BIN_FACTOR_X_HA, top_beam_ha.shape[3]
+        ),
+        (2, 4)
+    )
+    binned_bottom_beam_ha = np.mean(
+        bottom_beam_ha[:, y1:y2, x1:x2, :].reshape(
+            bottom_beam_ha.shape[0], bottom_beam_ha.shape[1] // BIN_FACTOR_Y, BIN_FACTOR_Y,
+                                     bottom_beam_ha.shape[2] // BIN_FACTOR_X_HA, BIN_FACTOR_X_HA,
+            bottom_beam_ha.shape[3]
+        ),
+        (2, 4)
+    )
+
+    resampled_top_beam_ha = resample_full_data(binned_top_beam_ha, CDELTX_HA, CDELTY)
+    resampled_bottom_beam_ha = resample_full_data(binned_bottom_beam_ha, CDELTX_HA, CDELTY)
+
+    total_intensity_ha = resampled_top_beam_ha + resampled_bottom_beam_ha
+
+    top_beam_ca, bottom_beam_ca = read_file_for_observations(
+        level0path / 'observation_data_{}_DETECTOR_3.fits'.format(timestring),
+        t1_CA, t2_CA, t3_CA, t4_CA, cut_shape_CA
+    )
+
+    y1 = 0
+    y2 = (top_beam_ca.shape[1] // BIN_FACTOR_Y) * BIN_FACTOR_Y
+    x1 = 0
+    x2 = (top_beam_ca.shape[2] // BIN_FACTOR_X_CA) * BIN_FACTOR_X_CA
+    binned_top_beam_ca = np.mean(
+        top_beam_ca[:, y1:y2, x1:x2, :].reshape(
+            top_beam_ca.shape[0], top_beam_ca.shape[1] // BIN_FACTOR_Y, BIN_FACTOR_Y,
+                                  top_beam_ca.shape[2] // BIN_FACTOR_X_CA, BIN_FACTOR_X_CA, top_beam_ca.shape[3]
+        ),
+        (2, 4)
+    )
+    binned_bottom_beam_ca = np.mean(
+        bottom_beam_ca[:, y1:y2, x1:x2, :].reshape(
+            bottom_beam_ca.shape[0], bottom_beam_ca.shape[1] // BIN_FACTOR_Y, BIN_FACTOR_Y,
+                                     bottom_beam_ca.shape[2] // BIN_FACTOR_X_CA, BIN_FACTOR_X_CA,
+            bottom_beam_ca.shape[3]
+        ),
+        (2, 4)
+    )
+
+    resampled_top_beam_ca = resample_full_data(binned_top_beam_ca, CDELTX_CA, CDELTY)
+    resampled_bottom_beam_ca = resample_full_data(binned_bottom_beam_ca, CDELTX_CA, CDELTY)
+
+    total_intensity_ca = resampled_top_beam_ca + resampled_bottom_beam_ca
+
+    nx = max(
+        total_intensity_ha.shape[1] + offset_1_y,
+        total_intensity_ca.shape[1] + offset_2_y
+    )
+
+    ny = max(
+        total_intensity_ha.shape[2] + offset_1_x,
+        total_intensity_ca.shape[2] + offset_2_x
+    )
+
+    fill_value_ha = np.median(total_intensity_ha, axis=(1, 2))
+
+    full_image_ha = np.ones((total_intensity_ha.shape[0], ny, nx, total_intensity_ha.shape[3]), dtype=np.float64) * fill_value_ha[:, np.newaxis, np.newaxis, :]
+
+    full_image_ha[:, 0 + offset_1_x: total_intensity_ha.shape[2] + offset_1_x, 0 + offset_1_y: total_intensity_ha.shape[1] + offset_1_y] = np.transpose(
+        total_intensity_ha,
+        axes=(0, 2, 1, 3)
+    )
+
+    full_image_ha = np.mean(full_image_ha, 0)
+
+    fill_value_ca = np.median(total_intensity_ca, axis=(1, 2))
+
+    full_image_ca = np.ones((total_intensity_ca.shape[0], ny, nx, total_intensity_ca.shape[3]),
+                            dtype=np.float64) * fill_value_ca[:, np.newaxis, np.newaxis, :]
+
+    full_image_ca[:, 0 + offset_2_x: total_intensity_ca.shape[2] + offset_2_x,
+    0 + offset_2_y: total_intensity_ca.shape[1] + offset_2_y] = np.transpose(
+        total_intensity_ca,
+        axes=(0, 2, 1, 3)
+    )
+
+    full_image_ca = np.mean(full_image_ca, 0)
+
+    halpha_image = full_image_ha[:, :, 8]
+
+    plt.imshow(halpha_image, cmap='gray', origin='lower')
+
+    points_ha = np.array(plt.ginput(3, 600))
+
+    points_ha = points_ha.astype(np.int64)
+
+    plt.close('all')
+    plt.clf()
+    plt.cla()
+
+    divide_factor_ha = halpha_image[points_ha[0][1], points_ha[0][0]]
+
+    norm_halpha_image = halpha_image / divide_factor_ha
+
+    intensity_6563 = planck_function_656_nm(temperature_map)
+
+    norm_intensity_6563 = intensity_6563 / intensity_6563[points_ha[0][1], points_ha[0][0]]
+
+    kernel_size_ha = np.int64(
+        np.amin(
+            [
+                np.abs(points_ha[1][1] - points_ha[2][1]),
+                np.abs(points_ha[1][0] - points_ha[2][0])
+            ]
+        )
+    )
+
+    if kernel_size_ha % 2 == 0:
+        kernel_size_ha -= 1
+
+    plt.imshow(intensity_6563[points_ha[1][1]:points_ha[2][1], points_ha[1][0]:points_ha[2][0]], cmap='gray', origin='lower')
+
+    compare_points_ha = np.array(plt.ginput(4, 600))
+
+    compare_points_ha = compare_points_ha.astype(np.int64)
+
+    plt.close('all')
+
+    result_ha, result_images_ha, fwhm_ha, k_value_ha, sigma_ind_ha, k_ind_ha, max_fwhm_ha, image_contrast_ha_old, image_contrast_ha_new, hmi_contrast_ha = approximate_stray_light_and_sigma_alternate(
+        norm_halpha_image[points_ha[1][1]:points_ha[2][1], points_ha[1][0]:points_ha[2][0]],
+        norm_intensity_6563[points_ha[1][1]:points_ha[2][1], points_ha[1][0]:points_ha[2][0]],
+        kernel_size=kernel_size_ha,
+        y1=compare_points_ha[0][1],
+        y2=compare_points_ha[1][1],
+        x1=compare_points_ha[0][0],
+        x2=compare_points_ha[1][0],
+        y3=compare_points_ha[2][1],
+        y4=compare_points_ha[3][1],
+        x3=compare_points_ha[2][0],
+        x4=compare_points_ha[3][0]
+    )
+
+    while True:
+        corrected_halpha_intensity_data_top_beam = np.transpose(
+            vec_correct_for_straylight(
+                np.transpose(
+                   resampled_top_beam_ha,
+                    axes=(0, 3, 1, 2)
+                ),
+                fwhm_ha,
+                k_value_ha,
+                kernel_size=kernel_size_ha
+            ),
+            axes=(0, 2, 3, 1)
+        )
+
+        corrected_halpha_intensity_data_bottom_beam = np.transpose(
+            vec_correct_for_straylight(
+                np.transpose(
+                    resampled_bottom_beam_ha,
+                    axes=(0, 3, 1, 2)
+                ),
+                fwhm_ha,
+                k_value_ha,
+                kernel_size=kernel_size_ha
+            ),
+            axes=(0, 2, 3, 1)
+        )
+
+        if corrected_halpha_intensity_data_top_beam.min() <= 0 or corrected_halpha_intensity_data_bottom_beam.min() <= 0:
+            k_value_ha -= 0.01
+            sys.stdout.write('Decreasing k_value_ha to {}\n'.format(k_value_ha))
+        else:
+            break
+
+    new_stokes_top_ha, new_stokes_bot_ha = get_stokes_from_observations(corrected_halpha_intensity_data_top_beam, corrected_halpha_intensity_data_bottom_beam, im_top_ha, im_bot_ha)
+
+    total_stokes_ha = np.zeros_like(new_stokes_top_ha)
+    total_stokes_ha[0] = (new_stokes_top_ha[0] + new_stokes_bot_ha[0]) / 2
+    for i in range(1, 4):
+        total_stokes_ha[i] = ((new_stokes_top_ha[i] / new_stokes_top_ha[0]) + (new_stokes_bot_ha[i] / new_stokes_bot_ha[0])) / 2
+        total_stokes_ha[i] *= total_stokes_ha[0]
+
+    sunpy.io.write_file(
+        fname=level5path / 'total_stokes_{}_DETECTOR_1.fits'.format(timestring),
+        data=total_stokes_ha,
+        header=OrderedDict({'CDELTY': AIA_SAMPLING_ARCSEC, 'CDELTX': AIA_SAMPLING_ARCSEC, 'UNIT': 'arcsec'}),
+        filetype='fits',
+        overwrite=True
+    )
+
+    residuals_ha = np.zeros_like(new_stokes_top_ha)
+    residuals_ha[0] = (new_stokes_top_ha[0] - new_stokes_bot_ha[0]) / 2
+    for i in range(1, 4):
+        residuals_ha[i] = ((new_stokes_top_ha[i] / new_stokes_top_ha[0]) - (new_stokes_bot_ha[i] / new_stokes_bot_ha[0])) / 2
+
+    sunpy.io.write_file(
+        fname=level5path / 'residuals_{}_DETECTOR_1.fits'.format(timestring),
+        data=residuals_ha,
+        header=OrderedDict({'CDELTY': AIA_SAMPLING_ARCSEC, 'CDELTX': AIA_SAMPLING_ARCSEC, 'UNIT': 'arcsec'}),
+        filetype='fits',
+        overwrite=True
+    )
+
+    planck_function_866_nm = prepare_planck_function(8662)
+
+    ca_image = full_image_ca[:, :, 8]
+
+    plt.imshow(ca_image, cmap='gray', origin='lower')
+
+    points_ca = np.array(plt.ginput(3, 600))
+
+    points_ca = points_ca.astype(np.int64)
+
+    plt.close('all')
+    plt.clf()
+    plt.cla()
+
+    divide_factor_ca = ca_image[points_ca[0][1], points_ca[0][0]]
+
+    norm_ca_image = ca_image / divide_factor_ca
+
+    intensity_8662 = planck_function_866_nm(temperature_map)
+
+    norm_intensity_8662 = intensity_8662 / intensity_8662[points_ca[0][1], points_ca[0][0]]
+
+    kernel_size_ca = np.int64(
+        np.amin(
+            [
+                np.abs(points_ca[1][1] - points_ca[2][1]),
+                np.abs(points_ca[1][0] - points_ca[2][0])
+            ]
+        )
+    )
+
+    if kernel_size_ca % 2 == 0:
+        kernel_size_ca -= 1
+
+    plt.imshow(
+        intensity_8662[points_ca[1][1]:points_ca[2][1], points_ca[1][0]:points_ca[2][0]],
+        cmap='gray',
+        origin='lower'
+    )
+
+    compare_points_ca = np.array(plt.ginput(4, 600))
+
+    compare_points_ca = compare_points_ca.astype(np.int64)
+
+    plt.close('all')
+
+    result_ca, result_images_ca, fwhm_ca, k_value_ca, sigma_ind_ca, k_ind_ca, max_fwhm_ca, image_contrast_ca_old, image_contrast_ca_new, hmi_contrast_ca = approximate_stray_light_and_sigma_alternate(
+        norm_ca_image[points_ca[1][1]:points_ca[2][1], points_ca[1][0]:points_ca[2][0]],
+        norm_intensity_8662[points_ca[1][1]:points_ca[2][1], points_ca[1][0]:points_ca[2][0]],
+        kernel_size=kernel_size_ca,
+        y1=compare_points_ca[0][1],
+        y2=compare_points_ca[1][1],
+        x1=compare_points_ca[0][0],
+        x2=compare_points_ca[1][0],
+        y3=compare_points_ca[2][1],
+        y4=compare_points_ca[3][1],
+        x3=compare_points_ca[2][0],
+        x4=compare_points_ca[3][0]
+    )
+
+    plt.imshow(resampled_top_beam_ca[0, :, :, 8], cmap='gray', origin='lower')
+
+    points_ca_top_beam = np.array(plt.ginput(2, 600))
+
+    points_ca_top_beam = points_ca_top_beam.astype(np.int64)
+
+    plt.close('all')
+    plt.clf()
+    plt.cla()
+
+    plt.imshow(resampled_bottom_beam_ca[0, :, :, 8], cmap='gray', origin='lower')
+
+    points_ca_bottom_beam = np.array(plt.ginput(2, 600))
+
+    points_ca_bottom_beam = points_ca_bottom_beam.astype(np.int64)
+
+    plt.close('all')
+    plt.clf()
+    plt.cla()
+
+    common_area_point = [
+        (
+            np.max([points_ca_top_beam[0][0], points_ca_bottom_beam[0][0]]),
+            np.max([points_ca_top_beam[0][1], points_ca_bottom_beam[0][1]])
+        ),
+        (
+            np.min([points_ca_top_beam[1][0], points_ca_bottom_beam[1][0]]),
+            np.min([points_ca_top_beam[1][1], points_ca_bottom_beam[1][1]])
+        )
+    ]
+
+    common_area_point = np.array(common_area_point).astype(np.int64)
+
+    while True:
+
+        corrected_ca_intensity_data_top_beam = np.transpose(
+            vec_correct_for_straylight(
+                np.transpose(
+                    resampled_top_beam_ca,
+                    axes=(0, 3, 1, 2)
+                ),
+                fwhm_ca,
+                k_value_ca,
+                kernel_size=kernel_size_ca
+            ),
+            axes=(0, 2, 3, 1)
+        )
+
+        corrected_ca_intensity_data_bottom_beam = np.transpose(
+            vec_correct_for_straylight(
+                np.transpose(
+                    resampled_bottom_beam_ca,
+                    axes=(0, 3, 1, 2)
+                ),
+                fwhm_ca,
+                k_value_ca,
+                kernel_size=kernel_size_ca
+            ),
+            axes=(0, 2, 3, 1)
+        )
+
+        if np.min(corrected_ca_intensity_data_top_beam[:, common_area_point[0][1]:common_area_point[1][1], common_area_point[0][0]:common_area_point[1][0], :]) <= 0 or np.min(corrected_ca_intensity_data_bottom_beam[:, common_area_point[0][1]:common_area_point[1][1], common_area_point[0][0]:common_area_point[1][0], :]) <= 0:
+            k_value_ca -= 0.01
+            sys.stdout.write('Decreasing k_value_ca to {}\n'.format(k_value_ca))
+        else:
+            break
+
+    corrected_ca_intensity_data_top_beam[np.where(corrected_ca_intensity_data_top_beam <= 0)] = 0
+
+    corrected_ca_intensity_data_bottom_beam[np.where(corrected_ca_intensity_data_bottom_beam <= 0)] = 0
+
+    new_stokes_top_ca, new_stokes_bot_ca = get_stokes_from_observations(
+        corrected_ca_intensity_data_top_beam,
+        corrected_ca_intensity_data_bottom_beam,
+        im_top_ca,
+        im_bot_ca
+    )
+
+    total_stokes_ca = np.zeros_like(new_stokes_top_ca)
+    total_stokes_ca[0] = (new_stokes_top_ca[0] + new_stokes_bot_ca[0]) / 2
+    for i in range(1, 4):
+        total_stokes_ca[i] = ((new_stokes_top_ca[i] / new_stokes_top_ca[0]) + (new_stokes_bot_ca[i] / new_stokes_bot_ca[0])) / 2
+        total_stokes_ca[i] *= total_stokes_ca[0]
+
+    total_stokes_ca[np.where(np.isnan(total_stokes_ca))] = 0
+
+    sunpy.io.write_file(
+        fname=level5path / 'total_stokes_{}_DETECTOR_3.fits'.format(timestring),
+        data=total_stokes_ca,
+        header=OrderedDict({'CDELTY': AIA_SAMPLING_ARCSEC, 'CDELTX': AIA_SAMPLING_ARCSEC, 'UNIT': 'arcsec'}),
+        filetype='fits',
+        overwrite=True
+    )
+
+    residuals_ca = np.zeros_like(new_stokes_top_ca)
+    residuals_ca[0] = (new_stokes_top_ca[0] - new_stokes_bot_ca[0]) / 2
+    for i in range(1, 4):
+        residuals_ca[i] = ((new_stokes_top_ca[i] / new_stokes_top_ca[0]) - (new_stokes_bot_ca[i] / new_stokes_bot_ca[0])) / 2
+
+    residuals_ca[np.where(np.isnan(residuals_ca))] = 0
+
+    sunpy.io.write_file(
+        fname=level5path / 'residuals_{}_DETECTOR_3.fits'.format(timestring),
+        data=residuals_ca,
+        header=OrderedDict({'CDELTY': AIA_SAMPLING_ARCSEC, 'CDELTX': AIA_SAMPLING_ARCSEC, 'UNIT': 'arcsec'}),
+        filetype='fits',
+        overwrite=True
+    )
+
+    fo = h5py.File(level5path / 'Spatial_straylight_correction_{}_{}.h5'.format(datestring, timestring), 'w')
+
+    fo['points_ha'] = points_ha
+
+    fo['result_ha'] = result_ha
+
+    fo['result_images_ha'] = result_images_ha
+
+    fo['fwhm_ha'] = fwhm_ha
+
+    fo['k_value_ha'] = k_value_ha
+
+    fo['sigma_ind_ha'] = sigma_ind_ha
+
+    fo['k_ind_ha'] = k_ind_ha
+
+    fo['points_ca'] = points_ca
+
+    fo['result_ca'] = result_ca
+
+    fo['result_images_ca'] = result_images_ca
+
+    fo['fwhm_ca'] = fwhm_ca
+
+    fo['k_value_ca'] = k_value_ca
+
+    fo['sigma_ind_ca'] = sigma_ind_ca
+
+    fo['k_ind_ca'] = k_ind_ca
+
+    fo['image_contrast_halpha_improved'] = image_contrast_ha_new
+
+    fo['image_contrast_halpha_original'] = image_contrast_ha_old
+
+    fo['image_contrast_ca_improved'] = image_contrast_ca_new
+
+    fo['image_contrast_ca_original'] = image_contrast_ca_old
+
+    fo['max_fwhm_ha'] = max_fwhm_ha
+
+    fo['max_fwhm_ca'] = max_fwhm_ca
+
+    fo.close()
+
+
 def get_demodulation_matrix(mod_matrix):
     return np.matmul(
         np.linalg.inv(
@@ -819,23 +1325,16 @@ def read_file_for_observations(filename, t1=0, t2=270, t3=530, t4=None, cut_shap
 
 
 if __name__ == '__main__':
-    # datestring = '20230527'
-    # timestring = '074428'
-    # hmi_time = '044800'
-    # hmi_cont_file = 'hmi.Ic_720s.{}_{}_TAI.3.continuum.fits'.format(datestring, hmi_time)
-    # hmi_ref_file = 'HMI_reference_image_{}_{}.fits'.format(datestring, timestring)
-    # estimate_alpha_and_sigma(
-    #     datestring,
-    #     timestring,
-    #     hmi_cont_file,
-    #     hmi_ref_file,
-    # )
 
-    # datestring = '20230603'
-    # timestring = '073616'
-    # hmi_time = '043600'
-    # hmi_cont_file = 'hmi.Ic_720s.{}_{}_TAI.3.continuum.fits'.format(datestring, hmi_time)
-    # hmi_ref_file = 'HMI_reference_image_{}_{}.fits'.format(datestring, timestring)
+    datestring = '20230603'
+    timestring = '073616'
+    hmi_time = '043600'
+    hmi_cont_file = 'hmi.Ic_720s.{}_{}_TAI.3.continuum.fits'.format(datestring, hmi_time)
+    hmi_ref_file = 'HMI_reference_image_{}_{}.fits'.format(datestring, timestring)
+    offset_1_y = 0
+    offset_1_x = 0
+    offset_2_y = 2
+    offset_2_x = 15
 
     # datestring = '20230603'
     # timestring = '092458'
@@ -849,29 +1348,29 @@ if __name__ == '__main__':
     # hmi_cont_file = 'hmi.Ic_720s.{}_{}_TAI.3.continuum.fits'.format(datestring, hmi_time)
     # hmi_ref_file = 'HMI_reference_image_{}_{}.fits'.format(datestring, timestring)
 
-    datestring = '20230527'
-    timestring = '074428'
-    hmi_time = '044800'
-    hmi_cont_file = 'hmi.Ic_720s.{}_{}_TAI.3.continuum.fits'.format(datestring, hmi_time)
-    hmi_ref_file = 'HMI_reference_image_{}_{}.fits'.format(datestring, timestring)
+    # datestring = '20230527'
+    # timestring = '074428'
+    # hmi_time = '044800'
+    # hmi_cont_file = 'hmi.Ic_720s.{}_{}_TAI.3.continuum.fits'.format(datestring, hmi_time)
+    # hmi_ref_file = 'HMI_reference_image_{}_{}.fits'.format(datestring, timestring)
 
-    # im_top_ha, im_bot_ha = (
-    #     np.array(
-    #         [
-    #             [1., 0.55195976, 0.62138789, -0.22471723],
-    #             [1., -0.19442698, 0.29436138, 0.59479479],
-    #             [1., 0.30880058, -0.72689111, 0.31905054],
-    #             [1., -0.78777467, -0.14543414, -0.25590761]
-    #         ]
-    #     ), np.array(
-    #         [
-    #             [1., -0.5410679, -0.60912599, 0.22028286],
-    #             [1., 0.21314264, -0.32269679, -0.6520501],
-    #             [1., -0.30670993, 0.72196991, -0.3168905],
-    #             [1., 0.77726088, 0.14349315, 0.25249222]
-    #         ]
-    #     )
-    # )
+    im_top_ha, im_bot_ha = (
+        np.array(
+            [
+                [1., 0.55195976, 0.62138789, -0.22471723],
+                [1., -0.19442698, 0.29436138, 0.59479479],
+                [1., 0.30880058, -0.72689111, 0.31905054],
+                [1., -0.78777467, -0.14543414, -0.25590761]
+            ]
+        ), np.array(
+            [
+                [1., -0.5410679, -0.60912599, 0.22028286],
+                [1., 0.21314264, -0.32269679, -0.6520501],
+                [1., -0.30670993, 0.72196991, -0.3168905],
+                [1., 0.77726088, 0.14349315, 0.25249222]
+            ]
+        )
+    )
 
     # im_top_ha, im_bot_ha = (
     #     np.array(
@@ -892,40 +1391,40 @@ if __name__ == '__main__':
     #     )
     # )
 
-    im_top_ha, im_bot_ha = (np.array([[ 1.        ,  0.6135243 ,  0.60096842, -0.4590448 ],
-        [ 1.        , -0.36108706,  0.57706807,  0.53667164],
-        [ 1.        ,  0.41747739, -0.86022583,  0.19964717],
-        [ 1.        , -0.81371066, -0.15353847, -0.40048565]]),
- np.array([[ 1.        , -0.64917944, -0.63589387,  0.48572231],
-        [ 1.        ,  0.39408896, -0.62980976, -0.58572126],
-        [ 1.        , -0.43375042,  0.89375694, -0.2074293 ],
-        [ 1.        ,  0.86785859,  0.1637556 ,  0.42713574]]))
+ #    im_top_ha, im_bot_ha = (np.array([[ 1.        ,  0.6135243 ,  0.60096842, -0.4590448 ],
+ #        [ 1.        , -0.36108706,  0.57706807,  0.53667164],
+ #        [ 1.        ,  0.41747739, -0.86022583,  0.19964717],
+ #        [ 1.        , -0.81371066, -0.15353847, -0.40048565]]),
+ # np.array([[ 1.        , -0.64917944, -0.63589387,  0.48572231],
+ #        [ 1.        ,  0.39408896, -0.62980976, -0.58572126],
+ #        [ 1.        , -0.43375042,  0.89375694, -0.2074293 ],
+ #        [ 1.        ,  0.86785859,  0.1637556 ,  0.42713574]]))
 
-    # im_top_ca, im_bot_ca = (
-    #     np.array(
-    #         [
-    #             [1.,  0.67750786,  0.4346143, -0.31892562],
-    #             [1., -0.07086019,  0.23021352,  0.92043555],
-    #             [1.,  0.01180473, -0.949532, -0.10441373],
-    #             [1., -0.63053025,  0.22564667, -0.67858406]]),
-    #     np.array(
-    #         [
-    #             [1., -0.74357133, -0.47699334,  0.35002391],
-    #             [1.,  0.07005817, -0.22760786, -0.91001763],
-    #             [1., -0.0108868 ,  0.87569699,  0.09629458],
-    #             [1.,  0.60529755, -0.21661669,  0.65142833]
-    #         ]
-    #     )
-    # )
+    im_top_ca, im_bot_ca = (
+        np.array(
+            [
+                [1.,  0.67750786,  0.4346143, -0.31892562],
+                [1., -0.07086019,  0.23021352,  0.92043555],
+                [1.,  0.01180473, -0.949532, -0.10441373],
+                [1., -0.63053025,  0.22564667, -0.67858406]]),
+        np.array(
+            [
+                [1., -0.74357133, -0.47699334,  0.35002391],
+                [1.,  0.07005817, -0.22760786, -0.91001763],
+                [1., -0.0108868 ,  0.87569699,  0.09629458],
+                [1.,  0.60529755, -0.21661669,  0.65142833]
+            ]
+        )
+    )
 
-    im_top_ca, im_bot_ca = (np.array([[ 1.        ,  0.57371367,  0.29576091, -0.37156289],
-        [ 1.        , -0.11671003,  0.21639848,  0.72208786],
-        [ 1.        ,  0.07750957, -0.7315419 , -0.10973425],
-        [ 1.        , -0.43387302,  0.17671311, -0.60011508]]),
- np.array([[ 1.        , -0.49002225, -0.2526163 ,  0.31736054],
-        [ 1.        ,  0.10077224, -0.18684736, -0.62348038],
-        [ 1.        , -0.0657335 ,  0.62039836,  0.09306227],
-        [ 1.        ,  0.36587365, -0.14901749,  0.50606118]]))
+ #    im_top_ca, im_bot_ca = (np.array([[ 1.        ,  0.57371367,  0.29576091, -0.37156289],
+ #        [ 1.        , -0.11671003,  0.21639848,  0.72208786],
+ #        [ 1.        ,  0.07750957, -0.7315419 , -0.10973425],
+ #        [ 1.        , -0.43387302,  0.17671311, -0.60011508]]),
+ # np.array([[ 1.        , -0.49002225, -0.2526163 ,  0.31736054],
+ #        [ 1.        ,  0.10077224, -0.18684736, -0.62348038],
+ #        [ 1.        , -0.0657335 ,  0.62039836,  0.09306227],
+ #        [ 1.        ,  0.36587365, -0.14901749,  0.50606118]]))
 
     t1_HA = 0
     t2_HA = 270
@@ -954,7 +1453,7 @@ if __name__ == '__main__':
     BIN_FACTOR_X_CA = int(AIA_SAMPLING_ARCSEC // (PIXEL_SIZE_CA * BINNING * IMAGE_SCALE))
     CDELTX_CA = BIN_FACTOR_X_CA * PIXEL_SIZE_CA * BINNING * IMAGE_SCALE
 
-    estimate_alpha_and_sigma(
+    estimate_alpha_and_sigma_alternate(
         datestring,
         timestring,
         hmi_cont_file,
@@ -978,5 +1477,9 @@ if __name__ == '__main__':
         t4_CA,
         cut_shape_CA,
         BIN_FACTOR_X_CA,
-        CDELTX_CA
+        CDELTX_CA,
+        offset_1_y,
+        offset_1_x,
+        offset_2_y,
+        offset_2_x
     )
