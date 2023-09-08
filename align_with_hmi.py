@@ -394,6 +394,24 @@ def run_hmi_flicker(datestring, timestring, hmi_cont_file, hmi_mag_file, angle=-
                         offset_x:file1['profiles'].shape[2] + offset_x], header, overwrite=True)
 
 
+def calculate_mu(
+        datestring,
+        hmi_cont_file,
+        init_x, init_y
+):
+    base_path = Path('C:\\WorkThings\\InstrumentalUncorrectedStokes')
+
+    level4path = base_path / datestring / 'Level-4'
+    hmi_image, hmi_header = sunpy.io.read_file(level4path / hmi_cont_file)[1]
+    hmi_map = sunpy.map.Map(hmi_image, hmi_header)
+
+    rho_p = np.sqrt(init_x ** 2 + init_y ** 2)
+
+    mu = np.sqrt(1 - np.square(rho_p / hmi_map.rsun_obs.value))
+
+    print(mu)
+
+
 if __name__ == '__main__':
     # run_flicker(
     #     datestring='20230603', timestring='073616',
@@ -445,12 +463,40 @@ if __name__ == '__main__':
     #     init_y=-250
     # )
 
-    run_hmi_flicker(
-        datestring='20230527', timestring='074428',
+    # run_hmi_flicker(
+    #     datestring='20230527', timestring='074428',
+    #     hmi_cont_file='hmi.Ic_720s.20230527_044800_TAI.3.continuum.fits',
+    #     hmi_mag_file='hmi.Ic_720s.20230527_044800_TAI.3.magnetogram.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+
+    calculate_mu(
+        datestring='20230603',
+        hmi_cont_file='hmi.Ic_720s.20230603_043600_TAI.3.continuum.fits',
+        init_x=-397,
+        init_y=-244
+    )
+
+    calculate_mu(
+        datestring='20230603',
+        hmi_cont_file='hmi.Ic_720s.20230603_063600_TAI.3.continuum.fits',
+        init_x=-380,
+        init_y=-244
+    )
+
+    calculate_mu(
+        datestring='20230601',
+        hmi_cont_file='hmi.Ic_720s.20230601_050000_TAI.3.continuum.fits',
+        init_x=-717,
+        init_y=-250
+    )
+
+    calculate_mu(
+        datestring='20230527',
         hmi_cont_file='hmi.Ic_720s.20230527_044800_TAI.3.continuum.fits',
-        hmi_mag_file='hmi.Ic_720s.20230527_044800_TAI.3.magnetogram.fits',
-        angle=-25,
-        offset_x=97, offset_y=65,
         init_x=0,
         init_y=-260
     )

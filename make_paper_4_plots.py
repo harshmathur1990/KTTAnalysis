@@ -1,3 +1,5 @@
+import sys
+
 import sunpy.io
 import h5py
 from pathlib import Path
@@ -28,56 +30,60 @@ def calculate_magnetic_field(datestring, errors=None, bin_factor=None):
 
     all_mag_files = [file for file in all_files if file.name.startswith('aligned') and file.name.endswith('spatial_straylight_corrected.nc')]
 
-    for a_mag_file in all_mag_files:
-        fcaha = h5py.File(a_mag_file, 'r')
-
-        ind = np.where(fcaha['profiles'][0, 0, 0, :, 0] != 0)[0]
-
-        ind = ind[800:]
-
-        actual_calculate_blos = prepare_calculate_blos(
-            fcaha['profiles'][0][:, :, ind],
-            fcaha['wav'][ind] / 10,
-            8661.8991 / 10,
-            8661.75 / 10,
-            8661.8 / 10,
-            1.5,
-            transition_skip_list=None,
-            bin_factor=bin_factor,
-            errors=errors
-        )
-
-        vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
-
-        magca = np.fromfunction(vec_actual_calculate_blos, shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
-
-        if errors is not None:
-            sunpy.io.write_file(level8path / '{}_mag_ca_fe_errors.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
-        else:
-            sunpy.io.write_file(level8path / '{}_mag_ca_fe.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
-
-        actual_calculate_blos = prepare_calculate_blos(
-            fcaha['profiles'][0][:, :, ind],
-            fcaha['wav'][ind] / 10,
-            8662.17 / 10,
-            8662.17 / 10,
-            (8662.17 + 0.4) / 10,
-            0.83,
-            transition_skip_list=None,
-            bin_factor=bin_factor,
-            errors=errors
-        )
-
-        vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
-
-        magca = np.fromfunction(vec_actual_calculate_blos,
-                                shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
-
-        if errors is not None:
-            sunpy.io.write_file(level8path / '{}_mag_ca_core_errors.fits'.format(a_mag_file.name), magca, dict(),
-                                overwrite=True)
-        else:
-            sunpy.io.write_file(level8path / '{}_mag_ca_core.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
+    # for a_mag_file in all_mag_files:
+    #     fcaha = h5py.File(a_mag_file, 'r')
+    #
+    #     ind = np.where(fcaha['profiles'][0, 0, 0, :, 0] != 0)[0]
+    #
+    #     ind = ind[800:]
+    #
+    #     actual_calculate_blos = prepare_calculate_blos(
+    #         fcaha['profiles'][0][:, :, ind],
+    #         fcaha['wav'][ind] / 10,
+    #         8661.8991 / 10,
+    #         8661.7 / 10,
+    #         8661.8 / 10,
+    #         1.5,
+    #         transition_skip_list=None,
+    #         bin_factor=bin_factor,
+    #         errors=errors
+    #     )
+    #
+    #     vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
+    #
+    #     magca = np.fromfunction(vec_actual_calculate_blos, shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
+    #
+    #     if errors is not None:
+    #         sunpy.io.write_file(level8path / '{}_mag_ca_fe_errors.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
+    #     else:
+    #         sunpy.io.write_file(level8path / '{}_mag_ca_fe.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
+    #
+    #     sys.stdout.write('Ca fe created\n')
+    #
+    #     actual_calculate_blos = prepare_calculate_blos(
+    #         fcaha['profiles'][0][:, :, ind],
+    #         fcaha['wav'][ind] / 10,
+    #         8662.17 / 10,
+    #         8662.17 / 10,
+    #         (8662.17 + 0.4) / 10,
+    #         0.83,
+    #         transition_skip_list=None,
+    #         bin_factor=bin_factor,
+    #         errors=errors
+    #     )
+    #
+    #     vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
+    #
+    #     magca = np.fromfunction(vec_actual_calculate_blos,
+    #                             shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
+    #
+    #     if errors is not None:
+    #         sunpy.io.write_file(level8path / '{}_mag_ca_core_errors.fits'.format(a_mag_file.name), magca, dict(),
+    #                             overwrite=True)
+    #     else:
+    #         sunpy.io.write_file(level8path / '{}_mag_ca_core.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
+    #
+    #     sys.stdout.write('Ca core created\n')
 
     for a_mag_file in all_mag_files:
         fcaha = h5py.File(a_mag_file, 'r')
@@ -120,6 +126,7 @@ def calculate_magnetic_field(datestring, errors=None, bin_factor=None):
         else:
             sunpy.io.write_file(level8path / '{}_mag_ha_core.fits'.format(a_mag_file.name), magha, dict(), overwrite=True)
 
+        sys.stdout.write('Ha core created\n')
         wave_range = 1.5 / 10
 
         actual_calculate_blos = prepare_calculate_blos(
@@ -145,6 +152,8 @@ def calculate_magnetic_field(datestring, errors=None, bin_factor=None):
         else:
             sunpy.io.write_file(level8path / '{}_mag_ha_full_line.fits'.format(a_mag_file.name), magfha, dict(),
                             overwrite=True)
+
+        sys.stdout.write('Ha full line created\n')
 
 
 def create_fov_plots(datestring, timestring, x1, y1, x2, y2, ticks, limit, points):
@@ -939,31 +948,31 @@ def plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, t
 
 
 if __name__ == '__main__':
-    calculate_magnetic_field('20230603', bin_factor=None)
+    calculate_magnetic_field('20230603', bin_factor=16)
 
-    datestring='20230603'
-    timestring='073616'
-    y1 = 14
-    y2 = 64
-    x1 = 4
-    x2 = 54
-    ticks = [-1500, -1000, -500, 0, 500, 1000, 1500]
-    limit=1900
-    points = [
-        [20, 45],
-        [46, 57]
-    ]
-    create_fov_plots(
-        datestring=datestring,
-        timestring=timestring,
-        x1=x1,
-        y1=y1,
-        x2=x2,
-        y2=y2,
-        ticks=ticks,
-        limit=limit,
-        points=points
-    )
+    # datestring='20230603'
+    # timestring='073616'
+    # y1 = 14
+    # y2 = 64
+    # x1 = 4
+    # x2 = 54
+    # ticks = [-1500, -1000, -500, 0, 500, 1000, 1500]
+    # limit=1900
+    # points = [
+    #     [20, 45],
+    #     [46, 57]
+    # ]
+    # create_fov_plots(
+    #     datestring=datestring,
+    #     timestring=timestring,
+    #     x1=x1,
+    #     y1=y1,
+    #     x2=x2,
+    #     y2=y2,
+    #     ticks=ticks,
+    #     limit=limit,
+    #     points=points
+    # )
 
     # datestring = '20230601'
     # timestring = '081014'
