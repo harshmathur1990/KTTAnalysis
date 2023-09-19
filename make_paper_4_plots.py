@@ -368,6 +368,325 @@ def create_fov_plots(datestring, timestring, x1, y1, x2, y2, ticks, limit, point
     f.close()
 
 
+def get_stokes_v_map(f, wave, wave_range):
+
+    ind_non_zero = np.where(f['profiles'][0, 0, 0, :, 0])[0]
+
+    ind_range = np.where((f['wav'][ind_non_zero] >= wave - wave_range) & (f['wav'][ind_non_zero] <= wave + wave_range))[0]
+
+    wave_ind = ind_non_zero[ind_range]
+
+    sm = np.nanmean(f['profiles'][0, :, :, wave_ind, 3] / f['profiles'][0, :, :, wave_ind, 0], 2)
+
+    sm[np.where(np.isnan(sm))] = 0
+
+    sm[np.where(np.isinf(sm))] = 0
+
+    return sm
+
+
+def create_fov_plots_adaptive_optics(datestring, timestring, x1, y1, x2, y2, ticks1, sv_max, limit, points):
+
+    colors = ["blue", "green", "white", "darkgoldenrod", "darkred"]
+
+    colors.reverse()
+
+    cmap1 = LinearSegmentedColormap.from_list("mycmap", colors)
+
+    extent = [0, 0.6 * 50, 0, 0.6 * 50]
+
+    # write_path = Path('/home/harsh/CourseworkRepo/KTTAnalysis/figures')
+
+    # write_path = Path('F:\\Harsh\\CourseworkRepo\\KTTAnalysis\\figures')
+
+    write_path = Path('/Volumes/HarshHDD-Data/Documents/CourseworkRepo/KTTAnalysis/figures')
+
+    # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+
+    base_path = Path('/Volumes/HarshHDD-Data/Documents/CourseworkRepo/InstrumentalUncorrectedStokes')
+
+    # base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
+
+    datepath = base_path / datestring
+
+    level4path = datepath / 'Level-4'
+
+    f = h5py.File(
+        level4path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc_pca.nc_spatial_straylight_corrected.nc'.format(
+            datestring, timestring
+        ),
+        'r'
+    )
+
+    hmi_img, _ = sunpy.io.read_file(
+        level4path / 'HMI_reference_image_{}_{}.fits'.format(
+            datestring, timestring
+        )
+    )[0]
+
+    hmi_mag, _ = sunpy.io.read_file(
+        level4path / 'HMI_reference_magnetogram_{}_{}.fits'.format(
+            datestring, timestring
+        )
+    )[0]
+
+    ind = np.where(f['profiles'][0, 0, 0, :, 0] != 0)[0]
+
+    wave = f['wav'][ind]
+
+    ind_halpha_core = ind[np.argmin(np.abs(wave - 6562.8))]
+
+    ind_ca_core = ind[np.argmin(np.abs(wave - 8662.17))]
+
+    plt.close('all')
+
+    plt.clf()
+
+    plt.cla()
+
+    font = {'size': 8}
+
+    matplotlib.rc('font', **font)
+
+    fig, axs = plt.subplots(2, 5, figsize=(7, 3))
+
+    axs[0][0].imshow(f['profiles'][0, y1:y2, x1:x2, 3204 + 8, 0], cmap='gray', origin='lower', extent=extent, vmin=f['profiles'][0, y1:y2, x1:x2, 3204 + 8, 0][5:-5, 5:-5].min(), vmax=f['profiles'][0, y1:y2, x1:x2, 3204 + 8, 0][5:-5, 5:-5].max())
+
+    axs[1][0].imshow(f['profiles'][0, y1:y2, x1:x2, ind_ca_core, 0], cmap='gray', origin='lower', extent=extent, vmin=f['profiles'][0, y1:y2, x1:x2, ind_ca_core, 0][5:-5, 5:-5].min(), vmax=f['profiles'][0, y1:y2, x1:x2, ind_ca_core, 0][5:-5, 5:-5].max())
+
+    axs[0][1].imshow(f['profiles'][0, y1:y2, x1:x2, 32, 0], cmap='gray', origin='lower', extent=extent, vmin=f['profiles'][0, y1:y2, x1:x2, 32, 0][5:-5, 5:-5].min(), vmax=f['profiles'][0, y1:y2, x1:x2, 32, 0][5:-5, 5:-5].max())
+
+    axs[1][1].imshow(f['profiles'][0, y1:y2, x1:x2, ind_halpha_core, 0], cmap='gray', origin='lower', extent=extent, vmin=f['profiles'][0, y1:y2, x1:x2, ind_halpha_core, 0][5:-5, 5:-5].min(), vmax=f['profiles'][0, y1:y2, x1:x2, ind_halpha_core, 0][5:-5, 5:-5].max())
+
+    axs[0][2].imshow(hmi_img[y1:y2, x1:x2], cmap='gray', origin='lower', extent=extent)
+
+    im12 = axs[1][2].imshow(hmi_mag[y1:y2, x1:x2], cmap=cmap1, origin='lower', vmin=-limit, vmax=limit, extent=extent)
+
+    axs[0][4].imshow(get_stokes_v_map(f, 6562.2405, 0.0664)[y1:y2, x1:x2] * 100, cmap=cmap1, origin='lower', vmin=-sv_max, vmax=sv_max, extent=extent)
+
+    im14 = axs[1][4].imshow(get_stokes_v_map(f, 6563.2505, 0.0664)[y1:y2, x1:x2] * 100, cmap=cmap1, origin='lower', vmin=-sv_max, vmax=sv_max, extent=extent)
+
+    axs[0][3].imshow(get_stokes_v_map(f, 8661.705, 0.0664)[y1:y2, x1:x2] * 100, cmap=cmap1, origin='lower', vmin=-sv_max, vmax=sv_max, extent=extent)
+
+    axs[1][3].imshow(get_stokes_v_map(f, 8662.425, 0.0664)[y1:y2, x1:x2] * 100, cmap=cmap1, origin='lower', vmin=-sv_max, vmax=sv_max, extent=extent)
+
+    pcolors = ['brown', 'navy']
+
+    # for indice, point in enumerate(points):
+    #     for i in range(2):
+    #         for j in range(4):
+    #             axs[i][j].scatter((point[0] - x1) * 0.6, (point[1] - y1) * 0.6, marker='x', s=16, color=pcolors[indice])
+
+    axins12 = inset_axes(
+        axs[1][2],
+        width="100%",
+        height="100%",
+        loc="upper right",
+        bbox_to_anchor=(0.05, 0.05, 0.9, 0.05),
+        bbox_transform=axs[1][2].transAxes,
+        borderpad=0,
+    )
+
+    cbar12 = fig.colorbar(im12, cax=axins12, ticks=ticks1, orientation='horizontal')
+
+    tick_values1 = np.array(ticks1) / 100
+
+    tick_values1 = tick_values1.astype(np.int64)
+
+    tick_values1 = [str(tick) for tick in tick_values1]
+
+    tick_values1 = [tt if ind%2 == 0 else '' for (ind, tt) in enumerate(tick_values1)]
+
+    cbar12.ax.set_xticklabels(tick_values1)
+
+    cbar12.ax.xaxis.set_ticks_position('top')
+
+    axins14 = inset_axes(
+        axs[1][4],
+        width="100%",
+        height="100%",
+        loc="upper right",
+        bbox_to_anchor=(0.05, 0.05, 0.9, 0.05),
+        bbox_transform=axs[1][4].transAxes,
+        borderpad=0,
+    )
+
+    ticks2 = np.arange(-sv_max, sv_max + 5, 5)
+
+    if ticks2.size >= 7:
+        ticks2 = np.arange(-sv_max, sv_max + 10, 10)
+
+    cbar14 = fig.colorbar(im14, cax=axins14, ticks=ticks2, orientation='horizontal')
+
+    tick_values2 = np.array(ticks2)
+
+    tick_values2 = tick_values2.astype(np.int64)
+
+    tick_values2 = [str(tick) for tick in tick_values2]
+
+    tick_values2 = [tt if ind % 2 == 0 else '' for (ind, tt) in enumerate(tick_values2)]
+
+    cbar14.ax.set_xticklabels(tick_values2)
+
+    cbar14.ax.xaxis.set_ticks_position('top')
+
+    ticks = [0, 5, 10, 15, 20, 25]
+
+    for i in range(2):
+        for j in range(5):
+            axs[i][j].set_xticks(ticks, [])
+            axs[i][j].set_yticks(ticks, [])
+            axs[i][j].xaxis.set_minor_locator(MultipleLocator(1))
+            axs[i][j].yaxis.set_minor_locator(MultipleLocator(1))
+
+    axs[0][0].set_yticks(ticks, ticks)
+    axs[1][0].set_yticks(ticks, ticks)
+
+    axs[1][0].set_xticks(ticks, ticks)
+    axs[1][1].set_xticks(ticks, ticks)
+    axs[1][2].set_xticks(ticks, ticks)
+    axs[1][3].set_xticks(ticks, ticks)
+    axs[1][4].set_xticks(ticks, ticks)
+
+    axs[1][2].text(
+        0.0, -0.25,
+        'Scan direction [arcsec]',
+        transform=axs[1][2].transAxes,
+        color='black'
+    )
+
+    axs[1][0].text(
+        -0.33, 0.6,
+        'Slit direction [arcsec]',
+        transform=axs[1][0].transAxes,
+        color='black',
+        rotation=90
+    )
+
+    axs[0][0].text(
+        0.03, 0.9,
+        '(a) Ca far-wing',
+        transform=axs[0][0].transAxes,
+        color='black'
+    )
+
+    axs[0][1].text(
+        0.03, 0.9,
+        r'(c) H$\alpha$ far-wing',
+        transform=axs[0][1].transAxes,
+        color='black'
+    )
+
+    axs[0][2].text(
+        0.03, 0.9,
+        r'(e) HMI continuum',
+        transform=axs[0][2].transAxes,
+        color='black'
+    )
+
+    axs[1][0].text(
+        0.03, 0.9,
+        '(b) Ca core',
+        transform=axs[1][0].transAxes,
+        color='black'
+    )
+
+    axs[1][1].text(
+        0.03, 0.9,
+        r'(d) H$\alpha$ core',
+        transform=axs[1][1].transAxes,
+        color='black'
+    )
+
+    axs[1][2].text(
+        0.03, 0.9,
+        r'(f) HMI $B_{\mathrm{LOS}}$',
+        transform=axs[1][2].transAxes,
+        color='black'
+    )
+
+    axs[1][2].text(
+        0.18, 0.8,
+        r'[x 100 G]',
+        transform=axs[1][2].transAxes,
+        color='black'
+    )
+
+    axs[0][4].text(
+        0.03, 0.9,
+        r'(i) Stokes $V$ (H$\alpha$) [%]',
+        transform=axs[0][4].transAxes,
+        color='black'
+    )
+
+    axs[0][4].text(
+        0.1, 0.8,
+        r'$-0.56\pm0.06\,\mathrm{\AA}$',
+        transform=axs[0][4].transAxes,
+        color='black'
+    )
+
+    axs[1][4].text(
+        0.03, 0.9,
+        r'(j) Stokes $V$ (H$\alpha$) [%]',
+        transform=axs[1][4].transAxes,
+        color='black'
+    )
+
+    axs[1][4].text(
+        0.1, 0.8,
+        r'$+0.45\pm0.06\,\mathrm{\AA}$',
+        transform=axs[1][4].transAxes,
+        color='black'
+    )
+
+    axs[0][3].text(
+        0.03, 0.9,
+        r'(g) Stokes $V$ (Ca II) [%]',
+        transform=axs[0][3].transAxes,
+        color='black'
+    )
+
+    axs[0][3].text(
+        0.1, 0.8,
+        r'$-0.44\pm0.06\,\mathrm{\AA}$',
+        transform=axs[0][3].transAxes,
+        color='black'
+    )
+
+    axs[1][3].text(
+        0.03, 0.9,
+        r'(h) Stokes $V$ (Ca II) [%]',
+        transform=axs[1][3].transAxes,
+        color='black'
+    )
+
+    axs[1][3].text(
+        0.1, 0.8,
+        r'$+0.28\pm0.06\,\mathrm{\AA}$',
+        transform=axs[1][3].transAxes,
+        color='black'
+    )
+
+    plt.subplots_adjust(left=0.07, right=1, bottom=0.13, top=1, wspace=0.0, hspace=0.0)
+
+    plt.savefig(
+        write_path / 'AO_FOV_{}_{}.pdf'.format(
+            datestring, timestring
+        ),
+        format='pdf',
+        dpi=300
+    )
+
+    plt.close('all')
+
+    plt.clf()
+
+    plt.cla()
+
+    f.close()
+
+
 def make_profile_plots(datestring, timestring, points):
     write_path = Path('/home/harsh/CourseworkRepo/KTTAnalysis/figures')
 
@@ -948,7 +1267,7 @@ def plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, t
 
 
 if __name__ == '__main__':
-    calculate_magnetic_field('20230603', bin_factor=16)
+    # calculate_magnetic_field('20230603', bin_factor=16)
 
     # datestring='20230603'
     # timestring='073616'
@@ -1046,29 +1365,29 @@ if __name__ == '__main__':
     # ]
     # make_profile_plots(datestring, timestring, points)
 
-    datestring='20230603'
-    timestring='073616'
-    y1 = 14
-    y2 = 64
-    x1 = 4
-    x2 = 54
-    ticks = [-1500, -1000, -500, 0, 500, 1000, 1500]
-    limit=1700
-    points = [
-        [20, 45],
-        [46, 57]
-    ]
-    make_halpha_magnetic_field_plots(
-        datestring=datestring,
-        timestring=timestring,
-        x1=x1,
-        y1=y1,
-        x2=x2,
-        y2=y2,
-        ticks=ticks,
-        limit=limit,
-        points=points
-    )
+    # datestring='20230603'
+    # timestring='073616'
+    # y1 = 14
+    # y2 = 64
+    # x1 = 4
+    # x2 = 54
+    # ticks = [-1500, -1000, -500, 0, 500, 1000, 1500]
+    # limit=1700
+    # points = [
+    #     [20, 45],
+    #     [46, 57]
+    # ]
+    # make_halpha_magnetic_field_plots(
+    #     datestring=datestring,
+    #     timestring=timestring,
+    #     x1=x1,
+    #     y1=y1,
+    #     x2=x2,
+    #     y2=y2,
+    #     ticks=ticks,
+    #     limit=limit,
+    #     points=points
+    # )
     #
     # datestring = '20230601'
     # timestring = '081014'
@@ -1144,3 +1463,84 @@ if __name__ == '__main__':
     # x2 = 53
     # ticks = [-20, -15, -10, -5, 0, 5]
     # plot_magnetic_fields_scatter_plots(datestring, timestring, x1, y1, x2, y2, ticks)
+
+    datestring = '20230603'
+    timestring = '073616'
+    y1 = 14
+    y2 = 64
+    x1 = 4
+    x2 = 54
+    ticks1 = [-1500, -1000, -500, 0, 500, 1000, 1500]
+    # ticks2 = [-15, -10, -5, 0, 5, 10, 15]
+    sv_max = 30
+    limit = 2000
+    points = [
+        [20, 45],
+        [46, 57]
+    ]
+    create_fov_plots_adaptive_optics(
+        datestring=datestring,
+        timestring=timestring,
+        x1=x1,
+        y1=y1,
+        x2=x2,
+        y2=y2,
+        ticks1=ticks1,
+        sv_max=sv_max,
+        limit=limit,
+        points=points
+    )
+
+    datestring = '20230601'
+    timestring = '081014'
+    y1 = 14
+    y2 = 64
+    x1 = 3
+    x2 = 53
+    ticks1 = [-1500, -1000, -500, 0, 500, 1000, 1500]
+    # ticks2 = [-15, -10, -5, 0, 5, 10, 15]
+    sv_max = 30
+    limit = 2000
+    points = [
+        [20, 45],
+        [46, 57]
+    ]
+    create_fov_plots_adaptive_optics(
+        datestring=datestring,
+        timestring=timestring,
+        x1=x1,
+        y1=y1,
+        x2=x2,
+        y2=y2,
+        ticks1=ticks1,
+        sv_max=sv_max,
+        limit=limit,
+        points=points
+    )
+
+    datestring = '20230527'
+    timestring = '074428'
+    y1 = 15
+    y2 = 65
+    x1 = 3
+    x2 = 53
+    ticks1 = [-1500, -1000, -500, 0, 500, 1000, 1500]
+    # ticks2 = [-15, -10, -5, 0, 5, 10, 15]
+    sv_max = 40
+    limit = 2000
+    points = [
+        [20, 45],
+        [46, 57]
+    ]
+    create_fov_plots_adaptive_optics(
+        datestring=datestring,
+        timestring=timestring,
+        x1=x1,
+        y1=y1,
+        x2=x2,
+        y2=y2,
+        ticks1=ticks1,
+        sv_max=sv_max,
+        limit=limit,
+        points=points
+    )
