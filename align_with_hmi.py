@@ -1,8 +1,9 @@
 import sys
 # sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
 # sys.path.insert(2, '/home/harsh/CourseworkRepo/WFAComparison')
-sys.path.insert(1, '/mnt/f/Harsh/CourseworkRepo/stic/example')
-sys.path.insert(1, 'F:\\Harsh\\CourseworkRepo\\stic\\example')
+# sys.path.insert(1, '/mnt/f/Harsh/CourseworkRepo/stic/example')
+# sys.path.insert(1, 'F:\\Harsh\\CourseworkRepo\\stic\\example')
+sys.path.insert(1, '/Volumes/HarshHDD-Data/Documents/CourseworkRepo/stic/example')
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -399,7 +400,7 @@ def calculate_mu(
         hmi_cont_file,
         init_x, init_y
 ):
-    base_path = Path('C:\\WorkThings\\InstrumentalUncorrectedStokes')
+    base_path = Path('/Users/harshmathur/CourseworkRepo/InstrumentalUncorrectedStokes/')
 
     level4path = base_path / datestring / 'Level-4'
     hmi_image, hmi_header = sunpy.io.read_file(level4path / hmi_cont_file)[1]
@@ -480,12 +481,12 @@ if __name__ == '__main__':
         init_y=-244
     )
 
-    calculate_mu(
-        datestring='20230603',
-        hmi_cont_file='hmi.Ic_720s.20230603_063600_TAI.3.continuum.fits',
-        init_x=-380,
-        init_y=-244
-    )
+    # calculate_mu(
+    #     datestring='20230603',
+    #     hmi_cont_file='hmi.Ic_720s.20230603_063600_TAI.3.continuum.fits',
+    #     init_x=-380,
+    #     init_y=-244
+    # )
 
     calculate_mu(
         datestring='20230601',
