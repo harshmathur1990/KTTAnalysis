@@ -330,11 +330,13 @@ def make_frequency_power_plot():
     plt.savefig(write_path / 'TipTiltPerformenace.pdf', format='pdf', dpi=300)
 
 
-def make_tiptilt_polarimeter_performance_plots():
+def make_tiptilt_polarimeter_performance_plots(index=3):
 
     # base_path = Path('/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
-    base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
+    # base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
+
+    base_path = Path('/Volumes/HarshHDD-Data/Documents/CourseworkRepo/InstrumentalUncorrectedStokes')
 
     no_tiptilt_directory = base_path / '20230520'
 
@@ -374,15 +376,15 @@ def make_tiptilt_polarimeter_performance_plots():
        429, 430, 431, 432, 433, 434, 435, 436, 437, 438, 439, 440, 441,
        442, 443, 444])
 
-    data00 = np.sqrt(np.mean(np.square(no_tiptilt_halpha[3, :, 21:50, halpha_indices].T / 2), 2))
-    data01 = np.sqrt(np.mean(np.square(tiptilt_halpha[3, 18:, 35:, halpha_indices].T / 2), 2))
-    data10 = np.sqrt(np.mean(np.square(no_tiptilt_ca[3, 0:37, 10:39, ca_indices].T / 2), 2))
-    data11 = np.sqrt(np.mean(np.square(tiptilt_ca[3, :-18, 10:-10, ca_indices].T / 2), 2))
+    data00 = np.sqrt(np.mean(np.square(no_tiptilt_halpha[index, :, 21:50, halpha_indices].T / 2), 2))
+    data01 = np.sqrt(np.mean(np.square(tiptilt_halpha[index, 18:, 35:, halpha_indices].T / 2), 2))
+    data10 = np.sqrt(np.mean(np.square(no_tiptilt_ca[index, 0:37, 10:39, ca_indices].T / 2), 2))
+    data11 = np.sqrt(np.mean(np.square(tiptilt_ca[index, :-18, 10:-10, ca_indices].T / 2), 2))
 
-    rmsdata00 = np.sqrt(np.mean(np.square(no_tiptilt_halpha[3, :, 21:50, halpha_indices].T / 2)))
-    rmsdata01 = np.sqrt(np.mean(np.square(tiptilt_halpha[3, 18:, 35:, halpha_indices].T / 2)))
-    rmsdata10 = np.sqrt(np.mean(np.square(no_tiptilt_ca[3, 0:37, 10:39, ca_indices].T / 2)))
-    rmsdata11 = np.sqrt(np.mean(np.square(tiptilt_ca[3, :-18, 10:-10, ca_indices].T / 2)))
+    rmsdata00 = np.sqrt(np.mean(np.square(no_tiptilt_halpha[index, :, 21:50, halpha_indices].T / 2)))
+    rmsdata01 = np.sqrt(np.mean(np.square(tiptilt_halpha[index, 18:, 35:, halpha_indices].T / 2)))
+    rmsdata10 = np.sqrt(np.mean(np.square(no_tiptilt_ca[index, 0:37, 10:39, ca_indices].T / 2)))
+    rmsdata11 = np.sqrt(np.mean(np.square(tiptilt_ca[index, :-18, 10:-10, ca_indices].T / 2)))
 
     # axs[0][0].imshow(data00, cmap='magma', origin='lower', vmin=0, vmax=0.09, extent=extent)
     # im01 = axs[0][1].imshow(data01, cmap='magma', origin='lower', vmin=0, vmax=0.09, extent=extent)
@@ -526,9 +528,17 @@ def make_tiptilt_polarimeter_performance_plots():
     )
     plt.subplots_adjust(left=0.1, right=0.98, bottom=0.06, top=0.9, wspace=0.3, hspace=0.3)
 
-    write_path = Path('F:\\Harsh\\CourseworkRepo\\KTTAnalysis\\figures')
+    # write_path = Path('F:\\Harsh\\CourseworkRepo\\KTTAnalysis\\figures')
 
-    plt.savefig(write_path / 'Polarization_noise_comparison.pdf', format='pdf', dpi=300)
+    write_path = Path('/Volumes/HarshHDD-Data/Documents/CourseworkRepo/KTTAnalysis/figures')
+
+    name_map = {
+        0: 'I',
+        1: 'Q',
+        2: 'U',
+        3: 'V'
+    }
+    plt.savefig(write_path / 'Polarization_noise_comparison_{}.pdf'.format(name_map[index]), format='pdf', dpi=300)
 
 
 def make_context_image():
@@ -803,7 +813,11 @@ def make_context_image():
 
 
 if __name__ == '__main__':
-    # make_tiptilt_polarimeter_performance_plots()
+    make_tiptilt_polarimeter_performance_plots(index=1)
+
+    make_tiptilt_polarimeter_performance_plots(index=2)
+
+    make_tiptilt_polarimeter_performance_plots(index=3)
 
     # make_histogram_tiptilt_plots()
 

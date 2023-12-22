@@ -391,7 +391,7 @@ def get_stokes_v_map(f, wave, wave_range):
     return sm
 
 
-def create_fov_plots_adaptive_optics(datestring, timestring, x1, y1, x2, y2, ticks1, sv_max, limit, points):
+def create_fov_plots_adaptive_optics(datestring, timestring, x1, y1, x2, y2, ticks1, sv_max, limit, points, plot_points=False):
 
     colors = ["blue", "green", "white", "darkgoldenrod", "darkred"]
 
@@ -478,10 +478,11 @@ def create_fov_plots_adaptive_optics(datestring, timestring, x1, y1, x2, y2, tic
 
     pcolors = ['brown', 'navy']
 
-    # for indice, point in enumerate(points):
-    #     for i in range(2):
-    #         for j in range(4):
-    #             axs[i][j].scatter((point[0] - x1) * 0.6, (point[1] - y1) * 0.6, marker='x', s=16, color=pcolors[indice])
+    if plot_points is True:
+        for indice, point in enumerate(points):
+            for i in range(2):
+                for j in range(5):
+                    axs[i][j].scatter((point[0] - x1) * 0.6, (point[1] - y1) * 0.6, marker='x', s=16, color=pcolors[indice])
 
     axins12 = inset_axes(
         axs[1][2],
@@ -681,6 +682,14 @@ def create_fov_plots_adaptive_optics(datestring, timestring, x1, y1, x2, y2, tic
             datestring, timestring
         ),
         format='pdf',
+        dpi=300
+    )
+
+    plt.savefig(
+        write_path / 'AO_FOV_{}_{}.png'.format(
+            datestring, timestring
+        ),
+        format='png',
         dpi=300
     )
 
@@ -1496,6 +1505,35 @@ if __name__ == '__main__':
     #     limit=limit,
     #     points=points
     # )
+
+    datestring = '20230603'
+    timestring = '073616'
+    y1 = 14
+    y2 = 64
+    x1 = 4
+    x2 = 54
+    ticks1 = [-1500, -1000, -500, 0, 500, 1000, 1500]
+    # ticks2 = [-15, -10, -5, 0, 5, 10, 15]
+    sv_max = 30
+    limit = 2000
+    points = [
+        [20, 45],
+        [46, 57]
+    ]
+    create_fov_plots_adaptive_optics(
+        datestring=datestring,
+        timestring=timestring,
+        x1=x1,
+        y1=y1,
+        x2=x2,
+        y2=y2,
+        ticks1=ticks1,
+        sv_max=sv_max,
+        limit=limit,
+        points=points,
+        plot_points=True
+    )
+
 
     # datestring = '20230601'
     # timestring = '081014'
