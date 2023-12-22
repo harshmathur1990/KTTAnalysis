@@ -1,5 +1,6 @@
 import sys
 sys.path.insert(1, 'F:\\Harsh\\CourseworkRepo\\RH\\python')
+sys.path.insert(2, '/home/harsh/CourseworkRepo/rh/RH-uitenbroek/python')
 import rhanalyze
 import os
 from pathlib import Path
@@ -31,6 +32,25 @@ def compare_with_atlas():
     plt.plot(catalog[ind_c, 0], catalog[ind_c, 1] / catalog[ind_c, 1][0], color='gray', linestyle='--')
 
     plt.show()
+
+
+def create_falc_for_inversions():
+    base_path = Path('/home/harsh/CourseworkRepo/rh/RH-uitenbroek/rhf1d/run')
+
+    cwd = os.getcwd()
+
+    os.chdir(base_path)
+
+    out = rhanalyze.rhout()
+
+    os.chdir(cwd)
+
+    waves = out.spectrum.waves
+
+    waves *= 10
+
+    ind = list()
+
 
 
 if __name__ == '__main__':

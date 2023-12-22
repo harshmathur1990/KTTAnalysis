@@ -4,26 +4,26 @@ import numpy as np
 
 def adjust_headers(datepath):
 
-    level2path = datepath / 'Level-6'
+    level2path = datepath / 'Level-2-alt'
 
     all_files = level2path.glob('**/*')
 
-    all_fits_files = [file for file in all_files if file.name.startswith('v2u') and file.name.endswith('.fits')]
+    all_fits_files = [file for file in all_files if file.name.startswith('total_stokes') and file.name.endswith('.fits')]
 
     for fits_file in all_fits_files:
         data, header = sunpy.io.read_file(fits_file, memmap=False)[0]
 
-        wave_type = fits_file.name.split('_')[-2]
+        wave_type = fits_file.name.split('_')[4].split('.')[0]
 
-        timestring = fits_file.name.split('_')[-1].split('.')[0]
+        timestring = fits_file.name.split('_')[2]
 
-        if wave_type == 'halpha':
-            source = datepath / 'Level-5' / 'total_stokes_{}_DETECTOR_1.fits'.format(timestring)
+        if int(wave_type) == 1:
+            source = datepath / 'total_stokes_{}_DETECTOR_1.fits'.format(timestring)
         else:
-            source = datepath / 'Level-5' / 'total_stokes_{}_DETECTOR_3.fits'.format(timestring)
+            source = datepath / 'total_stokes_{}_DETECTOR_3.fits'.format(timestring)
 
             if not source.exists():
-                source = datepath / 'Level-5' / 'total_stokes_{}_DETECTOR_2.fits'.format(timestring)
+                source = datepath / 'total_stokes_{}_DETECTOR_2.fits'.format(timestring)
 
         _, source_header = sunpy.io.read_file(source)[0]
 
@@ -43,7 +43,7 @@ def adjust_headers(datepath):
 
         header['CNAME3'] = 'HPC lon'
 
-        data[1:] = data[1:] * data[0:1]
+        # data[1:] /= data[1:] * data[0:1]
 
         print('{} - {} - {}'.format(datepath.name, data[3].min(), data[3].max()))
 
@@ -51,11 +51,13 @@ def adjust_headers(datepath):
 
 
 if __name__ == '__main__':
-    base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
+    # base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
+
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
     # datestring_list = ['20230603', '20230601', '20230530', '20230529', '20230527', '20230526', '20230525', '20230520', '20230519']
 
-    datestring_list = ['20230603', '20230601', '20230527']
+    datestring_list = ['20230527']
 
     for datestring in datestring_list:
         datepath = base_path / datestring

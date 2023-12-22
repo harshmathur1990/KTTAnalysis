@@ -1,9 +1,9 @@
 import sys
-# sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
+sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
 # sys.path.insert(2, '/home/harsh/CourseworkRepo/WFAComparison')
 # sys.path.insert(1, '/mnt/f/Harsh/CourseworkRepo/stic/example')
 # sys.path.insert(1, 'F:\\Harsh\\CourseworkRepo\\stic\\example')
-sys.path.insert(1, '/Volumes/HarshHDD-Data/Documents/CourseworkRepo/stic/example')
+# sys.path.insert(1, '/Volumes/HarshHDD-Data/Documents/CourseworkRepo/stic/example')
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -165,14 +165,14 @@ def align_and_merge_ca_ha_data(
         datestring, timestring,
         offset_1_y=0, offset_1_x=0, offset_2_y=0, offset_2_x=0
 ):
-    # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
     # base_path = Path('/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
-    base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
+    # base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
 
-    level7path = base_path / datestring / 'Level-7'
-    level8path = base_path / datestring / 'Level-8'
+    level7path = base_path / datestring / 'Level-3-alt'
+    level8path = base_path / datestring / 'Level-4-alt-alt'
 
     file1 = h5py.File(level7path / 'Halpha_{}_{}_stic_profiles.nc'.format(datestring, timestring), 'r')
 
@@ -266,16 +266,16 @@ def align_and_merge_ca_ha_data(
 
 
 def run_flicker(datestring, timestring, offset_1_y=0, offset_1_x=0, offset_2_y=0, offset_2_x=0, create_files=False):
-    # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
     # base_path = Path('/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
     # base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
 
-    base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
+    # base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
 
-    level7path = base_path / datestring / 'Level-7'
-    level8path = base_path / datestring / 'Level-8'
+    level7path = base_path / datestring / 'Level-3-alt'
+    level8path = base_path / datestring / 'Level-4-alt-alt'
 
     level8path.mkdir(parents=True, exist_ok=True)
 
@@ -300,15 +300,15 @@ def run_flicker(datestring, timestring, offset_1_y=0, offset_1_x=0, offset_2_y=0
 
 
 def run_hmi_flicker(datestring, timestring, hmi_cont_file, hmi_mag_file, angle=-13, offset_x=0, offset_y=0, init_x=307, init_y=-314, create_files=False):
-    # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
     # base_path = Path('/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
 
     # base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
 
-    base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
+    # base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
 
-    level4path = base_path / datestring / 'Level-8'
+    level4path = base_path / datestring / 'Level-4-alt-alt'
 
     file1 = h5py.File(level4path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc'.format(datestring, timestring), 'r')
     hmi_image, hmi_header = sunpy.io.read_file(level4path / hmi_cont_file)[1]
@@ -391,8 +391,8 @@ def run_hmi_flicker(datestring, timestring, hmi_cont_file, hmi_mag_file, angle=-
     sunpy.io.write_file(level4path / 'HMI_reference_image_{}_{}.fits'.format(datestring, timestring), rotated_data[offset_y:file1['profiles'].shape[1] + offset_y, offset_x:file1['profiles'].shape[2] + offset_x], header, overwrite=True)
 
     sunpy.io.write_file(level4path / 'HMI_reference_magnetogram_{}_{}.fits'.format(datestring, timestring),
-                        rotated_data_mag[offset_y:file1['profiles'].shape[1] + offset_y,
-                        offset_x:file1['profiles'].shape[2] + offset_x], header, overwrite=True)
+                            rotated_data_mag[offset_y:file1['profiles'].shape[1] + offset_y,
+                            offset_x:file1['profiles'].shape[2] + offset_x], header, overwrite=True)
 
 
 def calculate_mu(
@@ -413,6 +413,210 @@ def calculate_mu(
     print(mu)
 
 
+def get_aia_reference_image(
+    datestring='20230527', timestring='074428',
+    aia_file='hmi.Ic_720s.20230527_044800_TAI.3.magnetogram.fits',
+    angle=-25,
+    offset_x=97, offset_y=65,
+    init_x=0,
+    init_y=-260
+):
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+
+    # base_path = Path('/mnt/f/Harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+
+    # base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
+
+    # base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
+
+    level4path = base_path / datestring / 'Level-4-alt-alt'
+
+    file1 = h5py.File(level4path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc'.format(datestring, timestring), 'r')
+
+    aia_image, aia_header = sunpy.io.read_file(level4path / aia_file)[1]
+
+    aia_image[np.where(np.isnan(aia_image))] = 0
+
+    aia_map = sunpy.map.Map(aia_image, aia_header)
+
+    registered_aia_map = register(aia_map)
+
+    spread = 100
+
+    init = (init_x - spread / 2, init_y - spread / 2)
+
+    final = (init_x + spread / 2, init_y + spread / 2)
+
+    y0 = init[1] * u.arcsec
+
+    x0 = init[0] * u.arcsec
+
+    xf = final[0] * u.arcsec
+
+    yf = final[1] * u.arcsec
+
+    bottom_left1 = astropy.coordinates.SkyCoord(
+        x0, y0, frame=aia_map.coordinate_frame
+    )
+
+    top_right1 = astropy.coordinates.SkyCoord(
+        xf, yf, frame=aia_map.coordinate_frame
+    )
+
+    submap_registered_aia_map = registered_aia_map.submap(bottom_left=bottom_left1, top_right=top_right1)
+
+    rotated_submap_registered_aia_map = submap_registered_aia_map.rotate(angle=angle * u.deg, missing=0)
+
+    rotated_data = rotated_submap_registered_aia_map.data
+
+    header = dict()
+
+    header['CDELT2'] = 0.6
+
+    header['CDELT3'] = 0.6
+
+    header['CUNIT2'] = 'arcsec'
+
+    header['CUNIT3'] = 'arcsec'
+
+    header['CTYPE2'] = 'HPLT-TAN'
+
+    header['CTYPE3'] = 'HPLN-TAN'
+
+    header['CNAME2'] = 'HPC lat'
+
+    header['CNAME3'] = 'HPC lon'
+
+    sunpy.io.write_file(
+        level4path / '{}_{}_{}.fits'.format(Path(aia_file).name, datestring, timestring),
+        rotated_data[offset_y:file1['profiles'].shape[1] + offset_y,
+        offset_x:file1['profiles'].shape[2] + offset_x], header, overwrite=True)
+
+
+def merge_hmi_stokes_files():
+
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-4-alt-alt/')
+
+    si = [
+        'hmi.s_720s.20230527_044800_TAI.3.I0.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.I1.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.I2.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.I3.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.I4.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.I5.fits_20230527_074428.fits'
+    ]
+    sq = [
+        'hmi.s_720s.20230527_044800_TAI.3.Q0.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.Q1.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.Q2.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.Q3.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.Q4.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.Q5.fits_20230527_074428.fits'
+    ]
+    su = [
+        'hmi.s_720s.20230527_044800_TAI.3.U0.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.U1.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.U2.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.U3.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.U4.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.U5.fits_20230527_074428.fits'
+    ]
+    sv = [
+        'hmi.s_720s.20230527_044800_TAI.3.V0.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.V1.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.V2.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.V3.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.V4.fits_20230527_074428.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.V5.fits_20230527_074428.fits'
+    ]
+
+    combined_stokes = np.zeros((1, 65, 56, 6, 4), dtype=np.float64)
+
+    for index, (i, q, u,v) in enumerate(zip(si, sq, su, sv)):
+        di, hi = sunpy.io.read_file(base_path / i)[0]
+        dq, hq = sunpy.io.read_file(base_path / q)[0]
+        du, hu = sunpy.io.read_file(base_path / u)[0]
+        dv, hv = sunpy.io.read_file(base_path / v)[0]
+
+        combined_stokes[0, :, :, index, 0] = di
+        combined_stokes[0, :, :, index, 1] = dq
+        combined_stokes[0, :, :, index, 2] = du
+        combined_stokes[0, :, :, index, 3] = dv
+
+    sunpy.io.write_file(base_path / 'combined_hmi_stokes.fits', combined_stokes, hi, overwrite=True)
+
+
+def merge_hmi_stokes_files_full_fov():
+
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-4-alt-alt/')
+
+    si = [
+        'hmi.s_720s.20230527_044800_TAI.3.I0.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.I1.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.I2.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.I3.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.I4.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.I5.fits'
+    ]
+    sq = [
+        'hmi.s_720s.20230527_044800_TAI.3.Q0.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.Q1.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.Q2.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.Q3.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.Q4.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.Q5.fits'
+    ]
+    su = [
+        'hmi.s_720s.20230527_044800_TAI.3.U0.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.U1.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.U2.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.U3.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.U4.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.U5.fits'
+    ]
+    sv = [
+        'hmi.s_720s.20230527_044800_TAI.3.V0.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.V1.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.V2.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.V3.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.V4.fits',
+        'hmi.s_720s.20230527_044800_TAI.3.V5.fits'
+    ]
+
+    d, h = sunpy.io.read_file(base_path / si[0])[1]
+
+    m = sunpy.map.Map(d, h)
+
+    am = register(m)
+
+    combined_stokes = np.zeros((1, am.data.shape[0], am.data.shape[1], 6, 4), dtype=np.float64)
+
+    for index, (i, q, u,v) in enumerate(zip(si, sq, su, sv)):
+        di, hi = sunpy.io.read_file(base_path / i)[1]
+        dq, hq = sunpy.io.read_file(base_path / q)[1]
+        du, hu = sunpy.io.read_file(base_path / u)[1]
+        dv, hv = sunpy.io.read_file(base_path / v)[1]
+
+        mi = sunpy.map.Map(di, hi)
+        ami = register(mi)
+
+        mq = sunpy.map.Map(dq, hq)
+        amq = register(mq)
+
+        mu = sunpy.map.Map(du, hu)
+        amu = register(mu)
+
+        mv = sunpy.map.Map(dv, hv)
+        amv = register(mv)
+
+        combined_stokes[0, :, :, index, 0] = ami.data
+        combined_stokes[0, :, :, index, 1] = amq.data
+        combined_stokes[0, :, :, index, 2] = amu.data
+        combined_stokes[0, :, :, index, 3] = amv.data
+
+    sunpy.io.write_file(base_path / 'combined_hmi_stokes_full_fov.fits', combined_stokes, hi, overwrite=True)
+
+
 if __name__ == '__main__':
     # run_flicker(
     #     datestring='20230603', timestring='073616',
@@ -431,7 +635,7 @@ if __name__ == '__main__':
     # )
     # run_flicker(
     #     datestring='20230527', timestring='074428',
-    #     offset_1_y=0, offset_1_x=0, offset_2_y=1, offset_2_x=15,
+    #     offset_1_y=0, offset_1_x=0, offset_2_y=1, offset_2_x=16,
     #     create_files=True
     # )
     # run_hmi_flicker(
@@ -474,12 +678,12 @@ if __name__ == '__main__':
     #     init_y=-260
     # )
 
-    calculate_mu(
-        datestring='20230603',
-        hmi_cont_file='hmi.Ic_720s.20230603_043600_TAI.3.continuum.fits',
-        init_x=-397,
-        init_y=-244
-    )
+    # calculate_mu(
+    #     datestring='20230603',
+    #     hmi_cont_file='hmi.Ic_720s.20230603_043600_TAI.3.continuum.fits',
+    #     init_x=-397,
+    #     init_y=-244
+    # )
 
     # calculate_mu(
     #     datestring='20230603',
@@ -488,16 +692,272 @@ if __name__ == '__main__':
     #     init_y=-244
     # )
 
-    calculate_mu(
-        datestring='20230601',
-        hmi_cont_file='hmi.Ic_720s.20230601_050000_TAI.3.continuum.fits',
-        init_x=-717,
-        init_y=-250
-    )
+    # calculate_mu(
+    #     datestring='20230601',
+    #     hmi_cont_file='hmi.Ic_720s.20230601_050000_TAI.3.continuum.fits',
+    #     init_x=-717,
+    #     init_y=-250
+    # )
+    #
+    # calculate_mu(
+    #     datestring='20230527',
+    #     hmi_cont_file='hmi.Ic_720s.20230527_044800_TAI.3.continuum.fits',
+    #     init_x=0,
+    #     init_y=-260
+    # )
 
-    calculate_mu(
-        datestring='20230527',
-        hmi_cont_file='hmi.Ic_720s.20230527_044800_TAI.3.continuum.fits',
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='aia.lev1_euv_12s.2023-05-27T044810Z.171.image_lev1.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='aia.lev1_uv_24s.2023-05-27T044752Z.1600.image_lev1.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='aia.lev1_euv_12s.2023-05-27T044802Z.335.image_lev1.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.I0.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.Q0.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.U0.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.V0.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.I1.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.Q1.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.U1.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.V1.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.I2.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.Q2.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.U2.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.V2.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.I3.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.Q3.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.U3.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.V3.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.I4.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.Q4.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.U4.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.V4.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.I5.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.Q5.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.U5.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+    #
+    # get_aia_reference_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.s_720s.20230527_044800_TAI.3.V5.fits',
+    #     angle=-25,
+    #     offset_x=97, offset_y=65,
+    #     init_x=0,
+    #     init_y=-260
+    # )
+
+    # merge_hmi_stokes_files()
+
+    # merge_hmi_stokes_files_full_fov()
+
+    get_aia_reference_image(
+        datestring='20230527', timestring='074428',
+        aia_file='hmi.V_720s.20230527_044800_TAI.3.Dopplergram.fits',
+        angle=-25,
+        offset_x=97, offset_y=65,
         init_x=0,
         init_y=-260
     )

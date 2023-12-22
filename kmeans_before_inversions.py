@@ -11,14 +11,18 @@ from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 from pathlib import Path
+from copy import deepcopy
 
-base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes\\20230603\\Level-4')
-kmeans_output_dir = base_path / 'K-Means' / '073616'
-input_file = base_path / 'aligned_Ca_Ha_stic_profiles_20230603_073616.nc_pca.nc_spatial_straylight_corrected.nc'
+datestring = '20230527'
+timestring = '074428'
+base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/{}/Level-5-alt-alt'.format(datestring))
+# base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/{}/Level-5/'.format(datestring))
+kmeans_output_dir = base_path / 'K-Means' / '{}'.format(timestring)
+input_file = base_path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc_straylight_secondpass.nc'.format(datestring, timestring)
 f = h5py.File(input_file, 'r')
 ind = np.where(f['profiles'][0, 0, 0, :, 0] != 0)[0]
 ind = ind[800:]
-smallind = ind[50:350]
+smallind = ind #[50:350]
 all_data = f['profiles'][0, :, :, ind, 0]
 all_data = all_data.reshape(all_data.shape[0] * all_data.shape[1], ind.size)
 framerows = f['profiles'][0, :, :, smallind, 0]
@@ -26,6 +30,10 @@ framerows = framerows.reshape(framerows.shape[0] * framerows.shape[1], smallind.
 mn = np.mean(framerows, axis=0)
 sd = np.std(framerows, axis=0)
 framerows = (framerows - mn) / sd
+weights = np.ones(ind.shape)
+weights[:] = 0.3 / 476
+weights[200:300] = 0.7 / 100
+framerows *= weights[np.newaxis]
 
 
 class Status(enum.Enum):
@@ -155,12 +163,12 @@ def plot_inertia():
 
     plt.cla()
 
-
+'''
 if __name__ == '__main__':
     plot_inertia()
-
-
 '''
+
+
 if __name__ == '__main__':
 
     comm = MPI.COMM_WORLD
@@ -174,7 +182,7 @@ if __name__ == '__main__':
         finished_queue = set()
         failure_queue = set()
 
-        for i in range(2, 200, 1):
+        for i in range(30, 31, 1):
             waiting_queue.add(i)
 
         filepath = '{}/status_job.h5'.format(kmeans_output_dir)
@@ -265,4 +273,3 @@ if __name__ == '__main__':
             status = do_work(item)
 
             comm.send({'status': status, 'item': item}, dest=0, tag=2)
-'''

@@ -1,9 +1,9 @@
 import sys
-# sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
-# sys.path.insert(2, '/home/harsh/CourseworkRepo/WFAComparison')
-# sys.path.insert(1, '/mnt/f/Harsh/CourseworkRepo/stic/example')
-# sys.path.insert(1, 'F:\\Harsh\\CourseworkRepo\\stic\\example')
-sys.path.insert(1, '/Volumes/HarshHDD-Data/Documents/CourseworkRepo/stic/example')
+sys.path.insert(1, '/home/harsh/CourseworkRepo/stic/example')
+sys.path.insert(2, '/home/harsh/CourseworkRepo/WFAComparison')
+sys.path.insert(3, '/mnt/f/Harsh/CourseworkRepo/stic/example')
+sys.path.insert(4, 'F:\\Harsh\\CourseworkRepo\\stic\\example')
+sys.path.insert(5, '/Volumes/HarshHDD-Data/Documents/CourseworkRepo/stic/example')
 import h5py
 import numpy as np
 import sunpy.io
@@ -160,7 +160,9 @@ def generate_stic_input_files(
         norm_median_stray_ha, ha_ind, r_fwhm_ca, r_sigma_ca, r_straylight_ca,
         multiplicative_factor_ca, wave_ca,
         norm_median_stray_ca, ca_ind,
-        write_path, datestring, timestring):
+        write_path, datestring, timestring,
+        stic_cgs_calib_factor_ca, stic_cgs_calib_factor_ha
+):
 
     fo = h5py.File(nc_file, 'r')
 
@@ -173,14 +175,14 @@ def generate_stic_input_files(
             fo['profiles'][0, :, :, ha_ind, :],
             axes=(3, 0, 1, 2)
         ), r_straylight_ha, multiplicative_factor_ha
-    )
+    ) / stic_cgs_calib_factor_ha
 
     stray_corrected_data_ca = correct_for_straylight(
         np.transpose(
             fo['profiles'][0, :, :, ca_ind, :],
             axes=(3, 0, 1, 2)
         ), r_straylight_ca, multiplicative_factor_ca
-    )
+    ) / stic_cgs_calib_factor_ca
 
     f = h5py.File(
         write_path / '{}_{}_stray_corrected.h5'.format(
@@ -278,7 +280,7 @@ def generate_stic_input_files(
     all_profs = prof_ha + prof_ca
 
     all_profs.write(
-        write_path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc_pca.nc_spatial_straylight_corrected_spectral_straylight_secondpass.nc'.format(
+        write_path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc_straylight_secondpass.nc'.format(
             datestring, timestring
         )
     )
@@ -307,6 +309,7 @@ def generate_input_atmos_file():
 
 def calculate_straylight_from_median_profile(
         nc_file,
+        falc_output,
         catalog_file,
         ctl_variation_file,
         write_path,
@@ -319,14 +322,30 @@ def calculate_straylight_from_median_profile(
         mu=0.87
 ):
 
+    print(nc_file.name)
+
     f = h5py.File(nc_file, 'r')
 
-    a, b = np.unravel_index(
-        np.argmax(
-            f['profiles'][0, :, :, non_zero_ind[8], 0]
-        ),
-        f['profiles'][0, :, :, non_zero_ind[8], 0].shape
-    )
+    # plt.imshow
+
+    plt.imshow(f['profiles'][0, :, :, non_zero_ind[8], 0], origin='lower', cmap='gray')
+    point = np.array(plt.ginput(1, 600))
+    # a, b = np.unravel_index(
+    #     np.argmax(
+    #         f['profiles'][0, :, :, non_zero_ind[8], 0]
+    #     ),
+    #     f['profiles'][0, :, :, non_zero_ind[8], 0].shape
+    # )
+
+    # print ('{}, {}'.format(a, b))
+    # print(point)
+    # print(point.shape)
+
+    # sys.exit(1)
+
+    a, b = int(np.round(point[0][1], 0)), int(np.round(point[0][0], 0))
+
+    print('{}, {}'.format(a, b))
 
     median_profile = f['profiles'][0, a, b, non_zero_ind, 0]
 
@@ -340,33 +359,38 @@ def calculate_straylight_from_median_profile(
     else:
         wavelength = 8662.14
 
-    fctl = h5py.File(ctl_variation_file, 'r')
+    # fctl = h5py.File(ctl_variation_file, 'r')
+    #
+    # if wavelength == 6562.8:
+    #     mul_fac = fctl['ha_{}'.format(mu)][()]
+    #     mul_wav = fctl['wave_ha'][()]
+    # else:
+    #     mul_fac = fctl['ca_{}'.format(mu)][()]
+    #     mul_wav = fctl['wave_ca'][()]
+    #
+    # cs = CubicSpline(mul_wav, mul_fac)
+    #
+    # catalog_indice = np.where((catalog[:, 0] >= mul_wav.min()) & (catalog[:, 0] <= mul_wav.max()))[0]
+    #
+    # catalog = catalog[catalog_indice]
+    #
+    # int_mul_fac = cs(catalog[:, 0])
+    #
+    # catalog[:, 1] *= int_mul_fac
 
-    if wavelength == 6562.8:
-        mul_fac = fctl['ha_{}'.format(mu)][()]
-        mul_wav = fctl['wave_ha'][()]
-    else:
-        mul_fac = fctl['ca_{}'.format(mu)][()]
-        mul_wav = fctl['wave_ca'][()]
-
-    cs = CubicSpline(mul_wav, mul_fac)
-
-    catalog_indice = np.where((catalog[:, 0] >= mul_wav.min()) & (catalog[:, 0] <= mul_wav.max()))[0]
-
-    catalog = catalog[catalog_indice]
-
-    int_mul_fac = cs(catalog[:, 0])
-
-    catalog[:, 1] *= int_mul_fac
-
+    print(wave)
+    print(wave.shape)
+    fal = h5py.File(falc_output, 'r')
     norm_line, norm_atlas, atlas_wave = normalise_profiles(
         median_profile,
         wave,
-        catalog[:, 1],
-        catalog[:, 0],
+        fal['profiles'][0, 0, 0, :, 0],
+        fal['wav'][()],
         cont_wave=wave[cont_wave]
     )
 
+    print(norm_line.shape)
+    print(norm_atlas.shape)
     if fac_ind_s is None:
         fac_ind_s = 0
         fac_ind_e = norm_atlas.size - 1
@@ -409,7 +433,9 @@ def calculate_straylight_from_median_profile(
     stray_corrected_median = (stray_corrected_median - (r_straylight * stray_corrected_median[cont_wave])) / (
                 1 - r_straylight)
 
-    # stic_cgs_calib_factor = stray_corrected_median[cont_wave] / fsynth['profiles'][0, 0, 0, ind_synth, 0]
+    ind_synth = np.argmin(np.abs(fal['wav'][()] - wave[cont_wave]))
+
+    stic_cgs_calib_factor = stray_corrected_median[cont_wave] / fal['profiles'][0, 0, 0, ind_synth, 0]
 
     f = h5py.File(
         write_path / 'straylight_{}_estimated_profile_{}_timestring_{}.h5'.format(wavelength, datestring, timestring), 'w')
@@ -432,7 +458,7 @@ def calculate_straylight_from_median_profile(
 
     f['sigma_in_pixels'] = r_sigma
 
-    f['straylight_value'] = r_sigma
+    f['straylight_value'] = r_straylight
 
     f['fwhm'] = fwhm
 
@@ -441,6 +467,8 @@ def calculate_straylight_from_median_profile(
     f['k_values'] = k_values
 
     f['broadening_in_km_sec'] = broadening_km_sec
+
+    f['stic_cgs_calib_factor'] = stic_cgs_calib_factor
 
     f.close()
 
@@ -465,16 +493,21 @@ def calculate_straylight_from_median_profile(
 
     plt.show()
 
-    return r_fwhm, r_sigma, r_straylight, multiplicative_factor, wave, wavelength, broadening_km_sec, norm_median_stray
+    return r_fwhm, r_sigma, r_straylight, multiplicative_factor, wave, wavelength, broadening_km_sec, norm_median_stray, stic_cgs_calib_factor
 
 
 def generate_stic_input_files_caller(datestring, cont_wave=0, fac_ind_s=None, fac_ind_e=None, timestring_only=None, mu=0.87):
 
-    base_path = Path(
-        '/Volumes/HarshHDD-Data/Documents/CourseworkRepo/InstrumentalUncorrectedStokes/'
-    )
+    # base_path = Path(
+    #     '/Volumes/HarshHDD-Data/Documents/CourseworkRepo/InstrumentalUncorrectedStokes/'
+    # )
 
-    catalog_base = Path('/Volumes/HarshHDD-Data/Documents/CourseworkRepo/KTTAnalysis')
+    base_path = Path(
+        '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/'
+    )
+    # catalog_base = Path('/Volumes/HarshHDD-Data/Documents/CourseworkRepo/KTTAnalysis')
+
+    catalog_base = Path('/home/harsh/CourseworkRepo/KTTAnalysis')
 
     catalog_file_8662 = catalog_base / 'catalog_8662.txt'
 
@@ -484,11 +517,13 @@ def generate_stic_input_files_caller(datestring, cont_wave=0, fac_ind_s=None, fa
 
     datepath = base_path / datestring
 
-    level4path = datepath / 'Level-4'
+    level4path = datepath / 'Level-4-alt-alt'
 
-    level5path = datepath / 'Level-5'
+    level5path = datepath / 'Level-5-alt-alt'
 
     level5path.mkdir(parents=True, exist_ok=True)
+
+    falc_output = level4path / 'falc_nicole_for_stic_ha_ca_profs.nc'
 
     # delete_files = True
     #
@@ -508,13 +543,15 @@ def generate_stic_input_files_caller(datestring, cont_wave=0, fac_ind_s=None, fa
 
     all_files = level4path.glob('**/*')
 
-    nc_files = [file for file in all_files if file.name.endswith('spatial_straylight_corrected.nc')]
+    # nc_files = [file for file in all_files if file.name.endswith('spatial_straylight_corrected.nc')]
+
+    nc_files = [level4path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc']
 
     for nc_file in nc_files:
 
-        name_split = nc_file.name.split('_')
+        # name_split = nc_file.name.split('_')
 
-        timestring = name_split[6].split('.')[0]
+        timestring = '074428'# name_split[6].split('.')[0]
 
         if timestring_only is not None and timestring != timestring_only:
             continue
@@ -525,8 +562,9 @@ def generate_stic_input_files_caller(datestring, cont_wave=0, fac_ind_s=None, fa
 
         ha_ind = ind[0:800]
 
-        r_fwhm_ha, r_sigma_ha, r_straylight_ha, multiplicative_factor_ha, wave_ha, wavelength_ha, broadening_km_sec_ha, norm_median_stray_ha = calculate_straylight_from_median_profile(
+        r_fwhm_ha, r_sigma_ha, r_straylight_ha, multiplicative_factor_ha, wave_ha, wavelength_ha, broadening_km_sec_ha, norm_median_stray_ha, stic_cgs_calib_factor_ca = calculate_straylight_from_median_profile(
             nc_file=nc_file,
+            falc_output=falc_output,
             catalog_file=catalog_file_6563,
             ctl_variation_file=ctl_variation_file,
             write_path=level5path,
@@ -539,10 +577,13 @@ def generate_stic_input_files_caller(datestring, cont_wave=0, fac_ind_s=None, fa
             mu=mu
         )
 
+        print('{}, {}'.format(r_fwhm_ha, r_straylight_ha))
+
         ca_ind = ind[800:]
 
-        r_fwhm_ca, r_sigma_ca, r_straylight_ca, multiplicative_factor_ca, wave_ca, wavelength_ca, broadening_km_sec_ca, norm_median_stray_ca = calculate_straylight_from_median_profile(
+        r_fwhm_ca, r_sigma_ca, r_straylight_ca, multiplicative_factor_ca, wave_ca, wavelength_ca, broadening_km_sec_ca, norm_median_stray_ca, stic_cgs_calib_factor_ha = calculate_straylight_from_median_profile(
             nc_file=nc_file,
+            falc_output=falc_output,
             catalog_file=catalog_file_8662,
             ctl_variation_file=ctl_variation_file,
             write_path=level5path,
@@ -555,13 +596,15 @@ def generate_stic_input_files_caller(datestring, cont_wave=0, fac_ind_s=None, fa
             mu=mu
         )
 
+        print('{}, {}'.format(r_fwhm_ca, r_straylight_ca))
+
         generate_stic_input_files(
             nc_file, r_fwhm_ha, r_sigma_ha, r_straylight_ha,
             multiplicative_factor_ha, wave_ha,
             norm_median_stray_ha, ha_ind, r_fwhm_ca, r_sigma_ca, r_straylight_ca,
             multiplicative_factor_ca, wave_ca,
             norm_median_stray_ca, ca_ind,
-            level5path, datestring, timestring
+            level5path, datestring, timestring, stic_cgs_calib_factor_ca, stic_cgs_calib_factor_ha
         )
 
 
@@ -584,17 +627,43 @@ def convert_dat_to_png(base_path):
 
 
 if __name__ == '__main__':
-    datestring = '20230603'
-    cont_wave = -1
-    fac_ind_s = 30
-    fac_ind_e = -30
+    # datestring = '20230603'
+    # cont_wave = -1
+    # fac_ind_s = 30
+    # fac_ind_e = -30
+    # generate_stic_input_files_caller(
+    #     datestring=datestring,
+    #     cont_wave=0,
+    #     fac_ind_s=None,
+    #     fac_ind_e=None,
+    #     timestring_only='073616',
+    #     mu=0.87
+    # )
+    #
+    # datestring = '20230601'
+    # cont_wave = -1
+    # fac_ind_s = 30
+    # fac_ind_e = -30
+    # generate_stic_input_files_caller(
+    #     datestring=datestring,
+    #     cont_wave=0,
+    #     fac_ind_s=None,
+    #     fac_ind_e=None,
+    #     timestring_only='081014',
+    #     mu=0.6
+    # )
+
+    datestring = '20230527'
+    cont_wave = 0
+    fac_ind_s = None
+    fac_ind_e = None
     generate_stic_input_files_caller(
         datestring=datestring,
         cont_wave=0,
         fac_ind_s=None,
         fac_ind_e=None,
-        timestring_only='073616',
-        mu=0.87
+        timestring_only='074428',
+        mu=0.96
     )
 
     # merge_ca_ha_data()

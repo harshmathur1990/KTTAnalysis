@@ -1,5 +1,9 @@
 import sys
+
+import scipy.ndimage
+
 sys.path.insert(1, 'F:\\Harsh\\CourseworkRepo\\stic\\example')
+sys.path.insert(2, '/home/harsh/CourseworkRepo/stic/example/')
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
@@ -7,6 +11,8 @@ from pathlib import Path
 import matplotlib.gridspec as gridspec
 from prepare_data import *
 from scipy.interpolate import CubicSpline
+import sunpy.io
+import scipy.ndimage
 
 
 # kmeans_output_dir = Path(
@@ -21,9 +27,9 @@ from scipy.interpolate import CubicSpline
 #     '/home/harsh/SpinorNagaraju/maps_2_scan10/stic/'
 # )
 
-datestring = '20230603'
+datestring = '20230527'
 
-timestring = '073616'
+timestring = '074428'
 
 crop_indice = np.array(
     [
@@ -32,20 +38,28 @@ crop_indice = np.array(
     ]
 )
 
+# base_path = Path(
+#     'C:\\WorkThings\\InstrumentalUncorrectedStokes\\{}\\Level-4'.format(datestring)
+# )
+
 base_path = Path(
-    'C:\\WorkThings\\InstrumentalUncorrectedStokes\\{}\\Level-4'.format(datestring)
+    '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/{}/Level-5-alt-alt/'.format(datestring)
 )
 
 stic_path = base_path / 'stic'
 
-input_file = base_path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc_pca.nc_spatial_straylight_corrected.nc'.format(datestring, timestring)
+input_file = base_path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc_straylight_secondpass.nc'.format(datestring, timestring)
 
 kmeans_file = base_path / 'out_30_{}_{}.h5'.format(datestring, timestring)
 
 rps_plot_write_dir = base_path / 'PCA_RPs_Plots'
 
+# falc_file_path = Path(
+#     'F:\\Harsh\\CourseworkRepo\\stic\\example\\falc_nicole_for_stic.nc'
+# )
+
 falc_file_path = Path(
-    'F:\\Harsh\\CourseworkRepo\\stic\\example\\falc_nicole_for_stic.nc'
+    '/home/harsh/CourseworkRepo/stic/example/falc_nicole_for_stic.nc'
 )
 
 cw = np.asarray([8662.])
@@ -646,22 +660,26 @@ def make_stic_inversion_files(rps=None):
     non_zero_ind = np.where(fi['profiles'][0, fi['profiles'].shape[1]//2, fi['profiles'].shape[2]//2, ind_ca, 0] != 0)[0]
 
     ca = sp.profile(
-        nx=30, ny=1, ns=4,
+        nx=rps.size, ny=1, ns=4,
         nw=ind_ca.shape[0]
     )
 
     ca.wav[:] = fi['wav'][ind_ca]
 
     ca.dat[0, 0, :, non_zero_ind] = np.transpose(
-        f['rps'][rps, 800:],
+        f['rps'][()][rps, 800:],
         axes=(1, 0, 2)
     )
 
-    weights = np.zeros((ind_ca.shape[0], 4))
+    weights = np.ones((ind_ca.shape[0], 4)) * 1e16
 
-    weights[non_zero_ind, 0] = 0.004
+    weights[non_zero_ind, 0] = 0.006
 
-    weights[non_zero_ind[100:300], 0] = 0.001
+    weights[non_zero_ind[50:350], 0] = 0.004
+
+    weights[non_zero_ind[150:320], 0] = 0.002
+
+    weights[non_zero_ind[210:270], 0] = 0.002/4
 
     ca.weights = weights
 
@@ -670,7 +688,7 @@ def make_stic_inversion_files(rps=None):
     else:
         writefilename = 'ca_rps_stic_profiles_x_{}_y_1.nc'.format(rps.size)
     ca.write(
-        stic_path/ writefilename
+        stic_path / writefilename
     )
 
 def make_stic_inversion_files_halpha_ca_both(rps=None):
@@ -753,38 +771,76 @@ def make_stic_inversion_files_halpha_ca_both(rps=None):
     )
 
 
-def generate_input_atmos_file(length=30, temp=None, vlos=None, blong=0, name=''):
-    f = h5py.File(falc_file_path, 'r')
+def generate_input_atmos_file(length=30, temp=None, vlos=None, blong=0, name='', file=None, index=None, vlos_multiplier=None):
+    # f = h5py.File(falc_file_path, 'r')
+    #
+    # ltau_scale = np.linspace(-8, 1, num=70, endpoint=True)
+    #
+    # m = sp.model(nx=length, ny=1, nt=1, ndep=70)
+    #
+    # m.ltau[:, :, :] = ltau_scale
+    #
+    # m.pgas[:, :, :] = 1
+    #
+    # if temp is not None:
+    #     cs = CubicSpline(temp[0], temp[1])
+    #     tp = cs(ltau_scale)
+    # else:
+    #     tp = np.interp(ltau_scale, f['ltau500'][0, 0, 0], f['temp'][0, 0, 0]) # f['temp'][0, 0, 0]
+    # if vlos is not None:
+    #     cs = CubicSpline(vlos[0], vlos[1])
+    #     vl = cs(ltau_scale)
+    # else:
+    #     vl = np.interp(ltau_scale, f['ltau500'][0, 0, 0], f['vlos'][0, 0, 0])
+    # if isinstance(blong, tuple):
+    #     a, b = np.polyfit(blong[0], blong[1], 1)
+    #     bl = a * ltau_scale + b
+    # else:
+    #     bl = blong
+    #
+    # m.temp[:, :, :] = tp
+    #
+    # m.vlos[:, :, :] = vl
 
-    m = sp.model(nx=length, ny=1, nt=1, ndep=150)
+    # m.vturb[:, :, :] = 0
 
-    m.ltau[:, :, :] = f['ltau500'][0, 0, 0]
+    # m.Bln[:, :, :] = bl
+
+    if file is None:
+        file = falc_file_path
+        index = 0
+        vlos_multiplier = 1
+    elif index is None:
+        index = 0
+        vlos_multiplier = 1
+
+    f = h5py.File(file, 'r')
+
+    ltau_scale = np.linspace(-8, 1, num=70, endpoint=True)
+
+    m = sp.model(nx=length, ny=1, nt=1, ndep=ltau_scale.shape[0])
+
+    m.ltau[:, :, :] = ltau_scale
 
     m.pgas[:, :, :] = 1
 
-    if temp is not None:
-        cs = CubicSpline(temp[0], temp[1])
-        tp = cs(f['ltau500'][0, 0, 0])
+    if not isinstance(index, list):
+
+        m.temp[:, :, :] = np.interp(ltau_scale, f['ltau500'][0, 0, index], f['temp'][0, 0, index])
+
+        m.vlos[:, :, :] = np.interp(ltau_scale, f['ltau500'][0, 0, index], f['vlos'][0, 0, index]) * vlos_multiplier
+
+        m.vturb[:, :, :] = np.interp(ltau_scale, f['ltau500'][0, 0, index], f['vturb'][0, 0, index])
+
     else:
-        tp = f['temp'][0, 0, 0]
-    if vlos is not None:
-        cs = CubicSpline(vlos[0], vlos[1])
-        vl = cs(f['ltau500'][0, 0, 0])
-    else:
-        vl = f['vlos'][0, 0, 0]
-    if isinstance(blong, tuple):
-        a, b = np.polyfit(blong[0], blong[1], 1)
-        bl = a * f['ltau500'][0, 0, 0] + b
-    else:
-        bl = blong
+        for ii, i_index, i_vlos_multiplier in zip(range(length), index, vlos_multiplier):
+            m.temp[0, 0, ii] = np.interp(ltau_scale, f['ltau500'][0, 0, i_index], f['temp'][0, 0, i_index])
 
-    m.temp[:, :, :] = tp
+            m.vlos[0, 0, ii] = np.interp(ltau_scale, f['ltau500'][0, 0, i_index], f['vlos'][0, 0, i_index]) * i_vlos_multiplier
 
-    m.vlos[:, :, :] = vl
+            m.vturb[0, 0, ii] = np.interp(ltau_scale, f['ltau500'][0, 0, i_index], f['vturb'][0, 0, i_index])
 
-    m.vturb[:, :, :] = 0
-
-    m.Bln[:, :, :] = bl
+    f.close()
 
     m.write(
         stic_path / 'atmos_{}_{}.nc'.format(length, name)
@@ -1093,30 +1149,38 @@ def make_pixels_inversion_result_plots(nodes_temp=None, nodes_vlos=None, nodes_v
     finputprofs.close()
 
 
+def downgrde_resolution(arr, bin_factor):
+
+    if bin_factor is None:
+        return arr
+
+    new_arr = scipy.ndimage.gaussian_filter(arr, sigma=bin_factor / 2.355)
+
+    return np.mean(
+        new_arr.reshape(
+            new_arr.shape[0] // bin_factor,
+            bin_factor
+        ),
+        1
+    )
+
+
 def make_ca_rps_inversion_result_plots():
-    # rps_atmos_result = Path(
-    #     '/home/harsh/SpinorNagaraju/maps_1/stic/RPs_plots/inversions/only_Stokes_I/rps_stic_profiles_x_30_y_1_cycle_1_t_6_vl_3_vt_4_atmos.nc'
-    # )
-    #
-    # rps_profs_result = Path(
-    #     '/home/harsh/SpinorNagaraju/maps_1/stic/RPs_plots/inversions/only_Stokes_I/rps_stic_profiles_x_30_y_1_cycle_1_t_6_vl_3_vt_4_profs.nc'
+
+    # stic_run_1 = Path(
+    #     'C:\\WorkThings\\InstrumentalUncorrectedStokes\\20230603\\Level-4\\stic\\stic_run_1'
     # )
 
-    rps_atmos_result = Path(
-        'C:\\WorkThings\\InstrumentalUncorrectedStokes\\20230603\\Level-4\\stic\\stic_run_1\\ca_rps_stic_profiles_x_30_y_1_t_6_vl_2_vt_4_atmos.nc'
+    stic_run_1 = Path(
+        '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/stic/stic_run_ktt/'
     )
+    rps_atmos_result = stic_run_1 / 'ca_rps_stic_profiles_x_2_8_19_23_y_1.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_falc_atmos.nc'
 
-    rps_profs_result = Path(
-        'C:\\WorkThings\\InstrumentalUncorrectedStokes\\20230603\\Level-4\\stic\\stic_run_1\\ca_rps_stic_profiles_x_30_y_1_t_6_vl_2_vt_4_profs.nc'
-    )
+    rps_profs_result = stic_run_1 / 'ca_rps_stic_profiles_x_2_8_19_23_y_1.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_falc_profs.nc'
 
-    rps_input_profs = Path(
-        'C:\\WorkThings\\InstrumentalUncorrectedStokes\\20230603\\Level-4\\stic\\stic_run_1\\ca_rps_stic_profiles_x_30_y_1.nc'
-    )
+    rps_input_profs = stic_run_1 / 'ca_rps_stic_profiles_x_2_8_19_23_y_1.nc'
 
-    rps_plot_write_dir = Path(
-        'C:\\WorkThings\\InstrumentalUncorrectedStokes\\20230603\\Level-4\\stic\\stic_run_1\\Plots'
-    )
+    rps_plot_write_dir = stic_run_1 / 'Plots_20_c1'
 
     finputprofs = h5py.File(rps_input_profs, 'r')
 
@@ -1126,7 +1190,9 @@ def make_ca_rps_inversion_result_plots():
 
     ind = np.where(finputprofs['profiles'][0, 0, 0, :, 0] != 0)[0]
 
-    for i, k in enumerate(range(30)):
+    bin_factor = None
+
+    for i, k in enumerate([2, 8, 19, 23]):
         print(i)
         plt.close('all')
 
@@ -1136,25 +1202,60 @@ def make_ca_rps_inversion_result_plots():
 
         fig, axs = plt.subplots(3, 2, figsize=(12, 18))
 
-        axs[0][0].plot(finputprofs['wav'][ind], finputprofs['profiles'][0, 0, i, ind, 0], color='orange',
-                       linewidth=0.5)
+        if bin_factor is not None and bin_factor > 1:
 
-        axs[0][0].plot(fprofsresult['wav'][ind], fprofsresult['profiles'][0, 0, i, ind, 0], color='brown',
-                       linewidth=0.5)
+            axs[0][0].plot(
+                downgrde_resolution(finputprofs['wav'][ind], bin_factor),
+                downgrde_resolution(finputprofs['profiles'][0, 0, i, ind, 0], bin_factor),
+                color='orange',
+                linewidth=0.5
+            )
 
-        axs[0][1].plot(
-            finputprofs['wav'][ind],
-            finputprofs['profiles'][0, 0, i, ind, 3] / finputprofs['profiles'][0, 0, i, ind, 0],
-            color='orange',
-            linewidth=0.5
-        )
+            axs[0][0].plot(
+                downgrde_resolution(fprofsresult['wav'][ind], bin_factor),
+                downgrde_resolution(fprofsresult['profiles'][0, 0, i, ind, 0], bin_factor),
+                color='brown',
+                linewidth=0.5
+            )
 
-        axs[0][1].plot(
-            fprofsresult['wav'][ind],
-            fprofsresult['profiles'][0, 0, i, ind, 3] / fprofsresult['profiles'][0, 0, i, ind, 0],
-            color='brown',
-            linewidth=0.5
-        )
+            axs[0][0].axvline(x=8662.17, color='black', linestyle='--')
+
+            axs[0][1].plot(
+                downgrde_resolution(finputprofs['wav'][ind], bin_factor),
+                downgrde_resolution(finputprofs['profiles'][0, 0, i, ind, 3] / finputprofs['profiles'][0, 0, i, ind, 0], bin_factor),
+                color='orange',
+                linewidth=0.5
+            )
+
+            axs[0][1].plot(
+                downgrde_resolution(fprofsresult['wav'][ind], bin_factor),
+                downgrde_resolution(fprofsresult['profiles'][0, 0, i, ind, 3] / fprofsresult['profiles'][0, 0, i, ind, 0], bin_factor),
+                color='brown',
+                linewidth=0.5
+            )
+
+        else:
+            axs[0][0].plot(finputprofs['wav'][ind], finputprofs['profiles'][0, 0, i, ind, 0], color='orange',
+                           linewidth=0.5)
+
+            axs[0][0].plot(fprofsresult['wav'][ind], fprofsresult['profiles'][0, 0, i, ind, 0], color='brown',
+                           linewidth=0.5)
+
+            axs[0][0].axvline(x=8662.17, color='black', linestyle='--')
+
+            axs[0][1].plot(
+                finputprofs['wav'][ind],
+                finputprofs['profiles'][0, 0, i, ind, 3] / finputprofs['profiles'][0, 0, i, ind, 0],
+                color='orange',
+                linewidth=0.5
+            )
+
+            axs[0][1].plot(
+                fprofsresult['wav'][ind],
+                fprofsresult['profiles'][0, 0, i, ind, 3] / fprofsresult['profiles'][0, 0, i, ind, 0],
+                color='brown',
+                linewidth=0.5
+            )
 
         axs[1][0].plot(fatmosresult['ltau500'][0, 0, 0], fatmosresult['temp'][0, 0, i] / 1e3, color='brown')
 
@@ -1184,7 +1285,7 @@ def make_ca_rps_inversion_result_plots():
 
         fig.tight_layout()
 
-        fig.savefig(rps_plot_write_dir / 'HA_CA_RPs_{}.pdf'.format(k), format='pdf', dpi=300)
+        fig.savefig(rps_plot_write_dir / 'CA_RPs_{}.pdf'.format(k), format='pdf', dpi=300)
 
         plt.close('all')
 
@@ -1317,50 +1418,44 @@ Emission Blue RP: 26, 27
 '''
 
 
-def get_rp_atmos():
-    quiet_profiles = [0, 1, 4, 5, 6, 7, 8, 9, 11, 14, 16, 17, 19, 22, 23, 24, 25, 26, 27, 28, 29]
-    quiet_profiles_in_file = [0, 1, 4, 5, 6, 7, 8, 9, 11, 14, 16, 17, 19, 22, 23, 24, 25, 26, 27, 28, 29]
-    opp_polarity_profiles = [20]
-    emission_profiles = [2, 3, 10, 12, 13, 15, 18, 21]
+def get_rp_atmos(rp_file, indices=None, rps=None, total=30):
 
-    base_path = Path('/home/harsh/SpinorNagaraju/maps_1/stic/')
-    input_path = base_path / 'PCA_RPs_Plots/inversions'
+    f = h5py.File(rp_file, 'r')
 
-    quiet_file = input_path / 'rps_stic_profiles_x_0_1_4_5_6_7_8_9_11_14_16_17_19_22_23_24_25_26_27_28_29_y_1_cycle_1_t_6_vl_2_vt_4_blong_2_atmos.nc'
-    opp_polarity_file = input_path / 'rps_stic_profiles_x_20_y_1_cycle_1_t_6_vl_2_vt_4_blong_2_atmos.nc'
-    emission_file = input_path / 'rps_stic_profiles_x_2_3_10_12_13_15_18_21_y_1_cycle_1_t_6_vl_4_vt_4_blong_2_atmos.nc'
+    temp = np.zeros((total, f['temp'].shape[3]))
+    vlos = np.zeros((total, f['temp'].shape[3]))
+    vturb = np.zeros((total, f['temp'].shape[3]))
 
-    temp = np.zeros((30, 150))
-    vlos = np.zeros((30, 150))
-    vturb = np.zeros((30, 150))
-    blong = np.zeros((30, 150))
+    if indices is None or rps is None:
+        temp = f['temp'][0, 0]
+        vlos = f['vlos'][0, 0]
+        vturb = f['vturb'][0, 0]
+    else:
+        for index, rp in zip(indices, rps):
+            temp[rp] = f['temp'][0, 0, index]
+            vlos[rp] = f['vlos'][0, 0, index]
+            vturb[rp] = f['vturb'][0, 0, index]
 
-    f = h5py.File(quiet_file, 'r')
-    for index, prof in enumerate(quiet_profiles_in_file):
-        if prof in quiet_profiles:
-            temp[prof] = f['temp'][0, 0, index]
-            vlos[prof] = f['vlos'][0, 0, index]
-            vturb[prof] = f['vturb'][0, 0, index]
-            blong[prof] = f['blong'][0, 0, index]
+    return temp, vlos, vturb
+
+
+def get_rp_atmos_common(datestring):
+
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/{}/Level-4-alt/stic/stic_run_ktt'.format(datestring))
+
+    input_file = base_path / 'ca_rps_stic_profiles_x_30_y_1.nc_run_7_diff_kmeans_cycle_1_t_10_vl_4_vt_4_atmos.nc'
+
+    temp = np.zeros((30, 70))
+    vlos = np.zeros((30, 70))
+    vturb = np.zeros((30, 70))
+
+    f = h5py.File(input_file, 'r')
+    temp[:, :] = f['temp'][0, 0]
+    vlos[:, :] = f['vlos'][0, 0]
+    vturb[:, :] = f['vturb'][0, 0]
     f.close()
 
-    f = h5py.File(opp_polarity_file, 'r')
-    for index, i in enumerate(opp_polarity_profiles):
-        temp[i] = f['temp'][0, 0, index]
-        vlos[i] = f['vlos'][0, 0, index]
-        vturb[i] = f['vturb'][0, 0, index]
-        blong[i] = f['blong'][0, 0, index]
-    f.close()
-
-    f = h5py.File(emission_file, 'r')
-    for index, i in enumerate(emission_profiles):
-        temp[i] = f['temp'][0, 0, index]
-        vlos[i] = f['vlos'][0, 0, index]
-        vturb[i] = f['vturb'][0, 0, index]
-        blong[i] = f['blong'][0, 0, index]
-    f.close()
-
-    return temp, vlos, vturb, blong
+    return temp, vlos, vturb
 
 
 def generate_actual_inversion_files_mean():
@@ -1513,136 +1608,74 @@ def get_blong(pb, cb):
     return ltau * e1 + f1
 
 
-def generate_actual_inversion_files_quiet():
-    wave_indices = [[95, 153], [155, 194], [196, 405]]
+def generate_actual_inversion_files(datestring, timestring, y1, y2, x1, x2):
 
-    line_indices = [[0, 58], [58, 97], [97, 306]]
+    # temp, vlos, vturb = get_rp_atmos_common(datestring)
 
-    core_indices = [[13, 45], [15, 36], [70, 135]]
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/{}/Level-5-alt-alt'.format(datestring))
+    actual_file = base_path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc_straylight_secondpass.nc'.format(datestring, timestring)
+    write_path = base_path / 'stic/stic_run_ktt'
 
-    quiet_profiles = [0, 1, 4, 5, 6, 7, 8, 9, 11, 14, 16, 17, 19, 22, 23, 24, 25, 26, 27, 28, 29]
+    # kmeans_file = base_path / 'out_30_{}_{}.h5'.format(datestring, timestring)
 
-    temp, vlos, vturb, _ = get_rp_atmos()
+    # f = h5py.File(kmeans_file, 'r')
+    #
+    # labels = f['final_labels'][y1:y2, x1:x2]
+    #
+    # f.close()
 
-    base_path = Path('/home/harsh/SpinorNagaraju/maps_1/stic/')
-    actual_file = base_path / 'processed_inputs/alignedspectra_scan1_map01_Ca.fits_stic_profiles.nc'
-    write_path = base_path / 'pca_kmeans_fulldata_inversions/'
+    fi = h5py.File(actual_file, 'r')
 
-    kmeans_file = base_path / 'pca_out_30.h5'
+    ind_ca = np.where(fi['wav'][()] >= 8600)[0]
 
-    f = h5py.File(kmeans_file, 'r')
+    non_zero_ind = np.where(fi['profiles'][0, fi['profiles'].shape[1] // 2, fi['profiles'].shape[2] // 2, ind_ca, 0] != 0)[0]
 
-    labels = f['final_labels'][()][0:17]
-
-    f.close()
-
-    a_list = list()
-    b_list = list()
-    rp_final = list()
-
-    for profile in quiet_profiles:
-        a, b = np.where(labels == profile)
-        a_list += list(a)
-        b_list += list(b)
-        rp_final += list(np.ones(a.shape[0]) * profile)
-
-    a_arr = np.array(a_list)
-    b_arr = np.array(b_list)
-    rp_final = np.array(rp_final)
-
-    mask = np.zeros((17, 60), dtype=np.int64)
-
-    mask[a_arr, b_arr] = 1
-
-    fme = h5py.File(me_file_path, 'r')
-    bme = fme['B_abs'][()] * np.cos(fme['inclination_rad'][()])
-    fme.close()
-
-    fwfa = h5py.File(wfa_file_path, 'r')
-    wfa = fwfa['blos_gauss'][()]
-    fwfa.close()
-
-    a1, b1 = np.where(bme > 0)
-
-    mask[a1, b1] = 0
-
-    a_arr, b_arr = np.where(mask == 1)
-
-    rp_final = labels[a_arr, b_arr]
-
-    pixel_indices = np.zeros((3, a_arr.size), dtype=np.int64)
-
-    pixel_indices[0] = a_arr
-    pixel_indices[1] = b_arr
-    pixel_indices[2] = rp_final
-
-    fo = h5py.File(
-        write_path / 'pixel_indices_quiet_total_{}.h5'.format(
-            rp_final.size
-        ), 'w'
+    ca = sp.profile(
+        nx=x2-x1, ny=y2-y1, ns=4,
+        nw=ind_ca.shape[0]
     )
 
-    fo['pixel_indices'] = pixel_indices
+    ca.wav[:] = fi['wav'][ind_ca]
 
-    fo.close()
+    ca.dat[0, :, :] = fi['profiles'][0, y1:y2, x1:x2, ind_ca]
 
-    f = h5py.File(actual_file, 'r')
+    fi.close()
 
-    wc8 = f['wav'][()]
+    weights = np.ones((ind_ca.shape[0], 4)) * 1e16
 
-    ic8 = np.where(f['profiles'][0, 0, 0, :, 0] != 0)[0]
+    weights[non_zero_ind, 0] = 0.006
 
-    ca_8 = sp.profile(nx=rp_final.size, ny=1, ns=4, nw=wc8.size)
+    weights[non_zero_ind[50:350], 0] = 0.004
 
-    ca_8.wav[:] = wc8[:]
+    weights[non_zero_ind[150:320], 0] = 0.002
 
-    ca_8.dat[0, 0, :, ic8, :] = np.transpose(f['profiles'][()][0, a_arr, b_arr, :, :][:, ic8], axes=(1, 0, 2))
+    weights[non_zero_ind[210:270], 0] = 0.002 / 4
 
-    ca_8.weights[:, :] = 1.e16
-    ca_8.weights[ic8, 0] = 0.004
-    for line_indice, core_indice in zip(line_indices, core_indices):
-        ca_8.weights[ic8[line_indice[0] + core_indice[0]:line_indice[0] + core_indice[1]], 0] = 0.002
+    ca.weights = weights
 
-    ca_8.weights[ic8[line_indices[2][0] + core_indices[2][0]:line_indices[2][0] + core_indices[2][1]], 0] /= 2
-
-    ca_8.weights[ic8, 3] = ca_8.weights[ic8, 0]
-
-    ca_8.weights[ic8, 3] /= 2
-
-    ca_8.weights[ic8[line_indices[0][0] + core_indices[0][0]:line_indices[0][0] + core_indices[0][1]], 3] /= 4
-
-    ca_8.weights[ic8[line_indices[1][0] + core_indices[1][0]:line_indices[1][0] + core_indices[1][1]], 3] /= 4
-
-    ca_8.weights[ic8[line_indices[2][0] + core_indices[2][0]:line_indices[2][0] + core_indices[2][1]], 3] /= 2
-
-    ca_8.write(
-        write_path / 'alignedspectra_scan1_map01_Ca.fits_stic_profiles.nc_quiet_total_{}.nc'.format(rp_final.size)
+    ca.write(
+        write_path / '{}_stic_file.nc'.format(actual_file.name)
     )
 
-    m = sp.model(nx=a_arr.size, ny=1, nt=1, ndep=150)
-
-    m.ltau[:, :, :] = ltau
-
-    m.pgas[:, :, :] = 1.0
-
-    fold = h5py.File('/home/harsh/SpinorNagaraju/maps_1/stic/pca_kmeans_fulldata_inversions/combined_output.nc', 'r')
-
-    m.temp[0, 0] = fold['temp'][()][0, a_arr, b_arr]
-
-    m.vlos[0, 0] = fold['vlos'][()][0, a_arr, b_arr]
-
-    m.vturb[0, 0] = fold['vturb'][()][0, a_arr, b_arr]
-
-    fold.close()
-
-    vec_get_blong = np.vectorize(get_blong, signature='(),()->(n)')
-
-    m.Bln[0, 0] = vec_get_blong(bme[a_arr, b_arr], wfa[a_arr, b_arr])
-
-    write_filename = write_path / 'alignedspectra_scan1_map01_Ca.fits_stic_profiles.nc_quiet_total_{}_initial_atmos.nc'.format(
-        rp_final.size)
-
-    m.write(str(write_filename))
+    # f = h5py.File(falc_file_path, 'r')
+    #
+    # ltau_scale = np.linspace(-7.8, 1, num=70, endpoint=True)
+    #
+    # m = sp.model(nx=x2-x1, ny=y2-y1, nt=1, ndep=ltau_scale.shape[0])
+    #
+    # m.ltau[:, :, :] = ltau_scale
+    #
+    # m.pgas[:, :, :] = 1
+    #
+    # f.close()
+    #
+    # m.temp[0, :, :] = temp[labels]
+    #
+    # m.vlos[0, :, :] = vlos[labels]
+    #
+    # m.vturb[0, :, :] = vturb[labels]
+    #
+    # m.write(write_path / 'initial_rp_guess_atmos.nc')
 
 
 def generate_actual_inversion_files_spot():
@@ -1741,6 +1774,137 @@ def generate_actual_inversion_files_spot():
 
     write_filename = write_path / 'alignedspectra_scan1_map01_Ca.fits_stic_profiles.nc_spot_total_{}_initial_atmos.nc'.format(
         rp_final.size)
+
+    m.write(str(write_filename))
+
+
+def generate_actual_inversion_files_kmeans(
+    actual_filename,
+    rp_filename,
+    rp_prof_filename,
+    indices, rps,
+    rps_name,
+    stic_plot_pathname,
+    total,
+    previous_output_filename=None
+):
+
+    y1 = 15
+    y2 = 65
+    x1 = 3
+    x2 = 53
+
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/')
+    stic_path = base_path / 'stic/stic_run_ktt/'
+    plots = stic_path / stic_plot_pathname
+    actual_file = base_path / actual_filename
+    write_path = base_path / 'pca_kmeans_fulldata_inversions'
+
+    rp_file = plots / rp_filename
+
+    rp_prof_file = plots / rp_prof_filename
+
+    temp, vlos, vturb = get_rp_atmos(
+        rp_file,
+        indices=indices,
+        rps=rps,
+        total=total
+    )
+
+    kmeans_file = base_path / 'out_30_20230527_074428.h5'
+
+    f = h5py.File(kmeans_file, 'r')
+
+    labels = f['final_labels'][()][y1:y2, x1:x2]
+
+    f.close()
+
+    a_list = list()
+    b_list = list()
+    rp_final = list()
+
+    for profile in rps:
+        a, b = np.where(labels == profile)
+        a_list += list(a)
+        b_list += list(b)
+        rp_final += list(np.ones(a.shape[0]) * profile)
+
+    a_arr = np.array(a_list)
+    b_arr = np.array(b_list)
+    rp_final = np.array(rp_final)
+
+    pixel_indices = np.zeros((3, a_arr.size), dtype=np.int64)
+
+    pixel_indices[0] = a_arr
+    pixel_indices[1] = b_arr
+    pixel_indices[2] = rp_final
+
+    fo = h5py.File(
+        write_path / 'pixel_indices_{}_total_{}.h5'.format(
+            rps_name, rp_final.size
+        ), 'w'
+    )
+
+    fo['pixel_indices'] = pixel_indices
+
+    fo.close()
+
+    f = h5py.File(actual_file, 'r')
+
+    wc8 = f['wav'][()]
+
+    ic8 = np.where(f['profiles'][0, 0, 0, :, 0] != 0)[0]
+
+    ca_8 = sp.profile(nx=rp_final.size, ny=1, ns=4, nw=wc8.size)
+
+    ca_8.wav[:] = wc8[:]
+
+    ca_8.dat[0, 0, :, ic8, :] = np.transpose(f['profiles'][0][a_arr, b_arr, :, :][:, ic8], axes=(1, 0, 2))
+
+    frpf = h5py.File(rp_prof_file, 'r')
+
+    ca_8.weights[:, :] = frpf['weights'][()]
+
+    frpf.close()
+
+    ca_8.write(
+        write_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_{}_total_{}.nc'.format(rps_name, rp_final.size)
+    )
+
+    fa = h5py.File(rp_file, 'r')
+
+    m = sp.model(nx=a_arr.size, ny=1, nt=1, ndep=fa['temp'].shape[3])
+
+    m.ltau[:, :, :] = fa['ltau500'][0, 0, 0]
+
+    fa.close()
+
+    m.pgas[:, :, :] = 1.0
+
+    if previous_output_filename is not None:
+
+        previous_output = stic_path / previous_output_filename
+
+        fpo = h5py.File(previous_output, 'r')
+
+        m.temp[0, 0] = fpo['temp'][0][a_arr, b_arr]
+
+        m.vlos[0, 0] = fpo['vlos'][0][a_arr, b_arr]
+
+        m.vturb[0, 0] = fpo['vturb'][0][a_arr, b_arr]
+
+        fpo.close()
+
+    else:
+        m.temp[0, 0] = temp[labels[a_arr, b_arr]]
+
+        m.vlos[0, 0] = vlos[labels[a_arr, b_arr]]
+
+        m.vturb[0, 0] = vturb[labels[a_arr, b_arr]]
+
+    write_filename = write_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_{}_total_{}_initial_atmos.nc'.format(
+        rps_name, rp_final.size
+    )
 
     m.write(str(write_filename))
 
@@ -2077,19 +2241,29 @@ def generate_actual_inversion_pixels(pixels):
 
 
 def merge_atmospheres():
-    base_path = Path('/home/harsh/SpinorNagaraju/maps_1/stic/pca_kmeans_fulldata_inversions/')
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/pca_kmeans_fulldata_inversions/')
     pixel_files = [
-        base_path / 'pixel_indices_quiet_total_843.h5',
-        base_path / 'pixel_indices_quiet_retry_total_77.h5',
-        base_path / 'pixel_indices_opposite_polarity_total_67.h5',
-        base_path / 'pixel_indices_emission_total_110.h5',
+        base_path / 'pixel_indices_quiet_nominal_total_1695.h5',
+        base_path / 'pixel_indices_quiet_29_total_62.h5',
+        base_path / 'pixel_indices_quiet_21_total_80.h5',
+        base_path / 'pixel_indices_quiet_20_total_61.h5',
+        base_path / 'pixel_indices_quiet_14_total_70.h5',
+        base_path / 'pixel_indices_quiet_11_total_40.h5',
+        base_path / 'pixel_indices_quiet_5_16_total_68.h5',
+        base_path / 'pixel_indices_quiet_2_8_19_23_total_280.h5',
+        base_path / 'pixel_indices_quiet_1_12_27_total_144.h5'
     ]
 
     atmos_files = [
-        base_path / 'alignedspectra_scan1_map01_Ca.fits_stic_profiles.nc_quiet_total_843_cycle_1_t_6_vl_2_vt_4_blong_2_atmos.nc',
-        base_path / 'alignedspectra_scan1_map01_Ca.fits_stic_profiles.nc_quiet_retry_total_77_cycle_1_t_6_vl_2_vt_4_blong_2_atmos.nc',
-        base_path / 'alignedspectra_scan1_map01_Ca.fits_stic_profiles.nc_opposite_polarity_total_67_cycle_1_t_6_vl_2_vt_4_blong_2_nw_atmos.nc',
-        base_path / 'alignedspectra_scan1_map01_Ca.fits_stic_profiles.nc_emission_total_110_cycle_1_t_6_vl_4_vt_4_blong_2_nw_atmos.nc',
+        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_nominal_total_1695.nc_level_5_alt_alt_cycle_2_t_7_vl_4_vt_4_atmos.nc',
+        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_29_total_62.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_atmos.nc',
+        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_21_total_80.nc_level_5_alt_alt_cycle_2_t_10_vl_7_vt_4_atmos.nc',
+        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_20_total_61.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_atmos.nc',
+        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_14_total_70.nc_level_5_alt_alt_cycle_2_t_9_vl_6_vt_4_atmos.nc',
+        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_11_total_40.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_atmos.nc',
+        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_5_16_total_68.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_atmos.nc',
+        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_2_8_19_23_total_280.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_atmos.nc',
+        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_1_12_27_total_144.nc_level_5_alt_alt_cycle_2_t_10_vl_7_vt_5_atmos.nc'
     ]
 
     keys = [
@@ -2104,10 +2278,10 @@ def merge_atmospheres():
         'rho',
     ]
 
-    f = h5py.File(base_path / 'combined_output.nc', 'w')
+    f = h5py.File(base_path / 'combined_output_cycle_2.nc', 'w')
     outs = dict()
     for key in keys:
-        outs[key] = np.zeros((1, 17, 60, 150), dtype=np.float64)
+        outs[key] = np.zeros((1, 50, 50, 70), dtype=np.float64)
 
     for pixel_file, atmos_file in zip(pixel_files, atmos_files):
         pf = h5py.File(pixel_file, 'r')
@@ -2124,29 +2298,39 @@ def merge_atmospheres():
 
 
 def merge_output_profiles():
-    base_path = Path('/home/harsh/SpinorNagaraju/maps_1/stic/pca_kmeans_fulldata_inversions/')
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/pca_kmeans_fulldata_inversions/')
     pixel_files = [
-        base_path / 'pixel_indices_quiet_total_843.h5',
-        base_path / 'pixel_indices_quiet_retry_total_77.h5',
-        base_path / 'pixel_indices_opposite_polarity_total_67.h5',
-        base_path / 'pixel_indices_emission_total_110.h5',
+        base_path / 'pixel_indices_quiet_nominal_total_1695.h5',
+        base_path / 'pixel_indices_quiet_29_total_62.h5',
+        base_path / 'pixel_indices_quiet_21_total_80.h5',
+        base_path / 'pixel_indices_quiet_20_total_61.h5',
+        base_path / 'pixel_indices_quiet_14_total_70.h5',
+        base_path / 'pixel_indices_quiet_11_total_40.h5',
+        base_path / 'pixel_indices_quiet_5_16_total_68.h5',
+        base_path / 'pixel_indices_quiet_2_8_19_23_total_280.h5',
+        base_path / 'pixel_indices_quiet_1_12_27_total_144.h5'
     ]
 
     atmos_files = [
-        base_path / 'alignedspectra_scan1_map01_Ca.fits_stic_profiles.nc_quiet_total_843_cycle_1_t_6_vl_2_vt_4_blong_2_profs.nc',
-        base_path / 'alignedspectra_scan1_map01_Ca.fits_stic_profiles.nc_quiet_retry_total_77_cycle_1_t_6_vl_2_vt_4_blong_2_profs.nc',
-        base_path / 'alignedspectra_scan1_map01_Ca.fits_stic_profiles.nc_opposite_polarity_total_67_cycle_1_t_6_vl_2_vt_4_blong_2_nw_profs.nc',
-        base_path / 'alignedspectra_scan1_map01_Ca.fits_stic_profiles.nc_emission_total_110_cycle_1_t_6_vl_4_vt_4_blong_2_nw_profs.nc',
+        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_nominal_total_1695.nc_level_5_alt_alt_cycle_2_t_7_vl_4_vt_4_profs.nc',
+        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_29_total_62.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_profs.nc',
+        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_21_total_80.nc_level_5_alt_alt_cycle_2_t_10_vl_7_vt_4_profs.nc',
+        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_20_total_61.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_profs.nc',
+        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_14_total_70.nc_level_5_alt_alt_cycle_2_t_9_vl_6_vt_4_profs.nc',
+        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_11_total_40.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_profs.nc',
+        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_5_16_total_68.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_profs.nc',
+        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_2_8_19_23_total_280.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_profs.nc',
+        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_1_12_27_total_144.nc_level_5_alt_alt_cycle_2_t_10_vl_7_vt_5_profs.nc'
     ]
 
     keys = [
         'profiles'
     ]
 
-    f = h5py.File(base_path / 'combined_output_profs.nc', 'w')
+    f = h5py.File(base_path / 'combined_output_profs_cycle_2.nc', 'w')
     outs = dict()
     for key in keys:
-        outs[key] = np.zeros((1, 17, 60, 1236, 4), dtype=np.float64)
+        outs[key] = np.zeros((1, 50, 50, 2308, 4), dtype=np.float64)
 
     for pixel_file, atmos_file in zip(pixel_files, atmos_files):
         pf = h5py.File(pixel_file, 'r')
@@ -2584,6 +2768,200 @@ def generate_mean_files_for_inversions_from_coordinates(x, y, radius, type):
     m.write(str(write_filename))
 
 
+def interp_variable(tau1, tau2, val_1, val_2, ltau500_scale):
+    a, b = np.polyfit([tau1, tau2], [val_1, val_2], 1)
+    y = a * ltau500_scale + b
+    return y
+
+
+def get_magnetic_field_estimate(datestring, y1, y2, x1, x2):
+    level4path = Path(
+        '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/{}/Level-4-alt/'.format(
+            datestring
+        )
+    )
+
+    stic_path = level4path / 'stic/stic_run_ktt/'
+
+    vec_interp_variable = np.vectorize(interp_variable, signature='(),(),(),(),(n)->(n)')
+
+    ca_fe_mag, _ = sunpy.io.read_file(level4path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_mag_ca_fe.fits')[0]
+
+    ca_core_mag, _ = sunpy.io.read_file(level4path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_mag_ca_core.fits')[0]
+
+    f = h5py.File(stic_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_stic_file.nc_run_7_diff_kmeans_cycle_1_t_10_vl_4_vt_4_atmos_guess_blos.nc', 'r')
+
+    ltau500 = f['ltau500'][0, 0, 0]
+
+    f.close()
+
+    mag_strata = vec_interp_variable(
+        -4.5, -1,
+        ca_core_mag[y1:y2, x1:x2], ca_fe_mag[y1:y2, x1:x2],
+        ltau500
+    )
+
+    mag_strata = np.abs(mag_strata) * -1
+
+    f = h5py.File(
+        stic_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_stic_file.nc_run_7_diff_kmeans_cycle_1_t_10_vl_4_vt_4_atmos_guess_blos.nc',
+        'r+')
+
+    f['blong'][...] = mag_strata[np.newaxis]
+
+    f.close()
+
+
+def get_magnetic_field_estimate_hmi(datestring, y1, y2, x1, x2):
+    level4path = Path(
+        '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/{}/Level-4/'.format(
+            datestring
+        )
+    )
+
+    stic_path = level4path / 'stic/stic_run_ktt/'
+
+    vec_interp_variable = np.vectorize(interp_variable, signature='(),(),(),(),(n)->(n)')
+
+    ca_fe_mag, _ = sunpy.io.read_file(level4path / 'HMI_reference_magnetogram_20230527_074428.fits')[0]
+
+    ca_core_mag = scipy.ndimage.gaussian_filter(ca_fe_mag, 5) / 2
+
+    f = h5py.File(stic_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_pca.nc_stic_file.nc_cycle_2_t_10_vl_4_vt_4_hmi_mag_guess_atmos.nc', 'r')
+
+    ltau500 = f['ltau500'][0, 0, 0]
+
+    f.close()
+
+    mag_strata = vec_interp_variable(
+        -4.5, -1,
+        ca_core_mag[y1:y2, x1:x2], ca_fe_mag[y1:y2, x1:x2],
+        ltau500
+    )
+
+    mag_strata = np.abs(mag_strata) * -1
+
+    f = h5py.File(
+        stic_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_pca.nc_stic_file.nc_cycle_2_t_10_vl_4_vt_4_hmi_mag_guess_atmos.nc',
+        'r+')
+
+    f['blong'][...] = mag_strata[np.newaxis]
+
+    f.close()
+
+
+def merge_rp_atmosphere():
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-4-alt/stic/stic_run_ktt/')
+
+    dataset = [
+        [[3, 4, 12, 17], 'ca_rps_stic_profiles_x_3_4_12_17_21_26_27_y_1.nc_run_6_diff_kmeans_cycle_1_t_10_vl_4_vt_4_atmos.nc', [0, 1, 2, 3, 4]],
+        [[26], 'ca_rps_stic_profiles_x_26_27_y_1.nc_run_6_diff_kmeans_cycle_1_t_10_vl_4_vt_4_atmos.nc', [0]],
+        [[7, 9, 14, 24, 27, 29], 'ca_rps_stic_profiles_x_3_4_7_9_12_14_17_21_24_26_27_29_y_1.nc_run_5_diff_kmeans_cycle_1_t_10_vl_4_vt_4_atmos.nc', [2, 3, 5, 8, 10, 11]],
+        [[21], 'ca_rps_stic_profiles_x_21_y_1.nc_run_4_diff_kmeans_cycle_1_t_10_vl_4_vt_4_atmos.nc', [0]],
+        [[0, 1, 2, 5, 6, 8, 10, 11, 13, 15, 16, 18, 19, 20, 22, 23, 25, 28], 'ca_rps_stic_profiles_x_30_y_1.nc_run_4_diff_kmeans_cycle_1_t_10_vl_4_vt_4_atmos.nc', [0, 1, 2, 5, 6, 8, 10, 11, 13, 15, 16, 18, 19, 20, 22, 23, 25, 28]]
+    ]
+
+    m = sp.model(nx=30, ny=1, nt=1, ndep=70)
+
+    for (rps, filename, localinds) in dataset:
+        f = h5py.File(base_path / filename, 'r')
+
+        for (rp, localind) in zip(rps, localinds):
+            m.temp[0, 0, rp] = f['temp'][0, 0, localind]
+            m.vlos[0, 0, rp] = f['vlos'][0, 0, localind]
+            m.vturb[0, 0, rp] = f['vturb'][0, 0, localind]
+            m.ltau[0, 0, rp] = f['ltau500'][0, 0, localind]
+            m.pgas[0, 0, rp] = 1
+
+        f.close()
+
+    m.write(base_path / 'combined_rp_atmos.nc')
+
+
+def generate_smoothed_atmos_parameters():
+
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-4-alt/stic/stic_run_ktt/')
+
+    filepath = base_path / 'ca_rps_stic_profiles_x_30_y_1.nc_run_7_diff_kmeans_cycle_1_t_10_vl_4_vt_4_atmos.nc'
+
+    f = h5py.File(filepath, 'r')
+
+    ltau_scale = np.linspace(-8, 1, num=70, endpoint=True)
+
+    m = sp.model(nx=f['temp'].shape[2], ny=1, nt=1, ndep=ltau_scale.shape[0])
+
+    m.ltau[:, :, :] = ltau_scale
+
+    m.pgas[:, :, :] = 1
+
+    for i in range(f['temp'].shape[2]):
+        print(i)
+
+        m.vlos[0, 0, i] = f['vlos'][0, 0, i]
+
+        m.vturb[0, 0, i] = f['vturb'][0, 0, i]
+
+        # plt.close('all')
+        #
+        # plt.plot(f['ltau500'][0, 0, i], f['temp'][0, 0, i])
+        #
+        # plt.axvline(-8, color='black')
+        # plt.axvline(-7, color='black')
+        # plt.axvline(-6, color='black')
+        # plt.axvline(-5, color='black')
+        # plt.axvline(-4, color='black')
+        # plt.axvline(-3, color='black')
+        # plt.axvline(-2, color='black')
+        # plt.axvline(-1, color='black')
+        # plt.axvline(-0, color='black')
+        # plt.axvline(1, color='black')
+        #
+        # plt.ylim(2000, 25000)
+
+        # points = plt.ginput(10, 1000)
+
+        # plt.close('all')
+
+        # points = np.array(points)
+
+        # cs = CubicSpline([-8, -7, -6, -5, -4, -3, -2, -1, 0, 1], points[:, 1])
+
+        lt6 = np.argmin(np.abs(f['ltau500'][0, 0, i] + 6))
+
+        lt5 = np.argmin(np.abs(f['ltau500'][0, 0, i] + 5))
+
+        a, b = np.polyfit([-6, -5], f['temp'][0, 0, i][np.array([lt6, lt5])], 1)
+
+        y8, y7 = a * -8 + b, a * -7 + b
+
+        ltn1 = np.argmin(np.abs(f['ltau500'][0, 0, i] + 1))
+
+        lt0 = np.argmin(np.abs(f['ltau500'][0, 0, i] ))
+
+        a, b = np.polyfit([-1, 0], f['temp'][0, 0, i][np.array([ltn1, lt0])], 1)
+
+        y1 = a * 1 + b
+
+        ind = list()
+
+        for j in [-6, -5, -4, -2, -1, 0]:
+            ind.append(np.argmin(np.abs(f['ltau500'][0, 0, i] - j)))
+
+        value_ind = f['temp'][0, 0, i][np.array(ind)]
+
+        total_ind = [-8, -7, -6, -5, -4, -2, -1, 0, 1]
+
+        total_value = [y8, y7] + list(value_ind) + [y1]
+
+        cs = CubicSpline(total_ind, total_value, 1)
+
+        m.temp[0, 0, i] = cs(ltau_scale)
+
+    m.write(base_path / '{}_smoothed_full_scale.nc'.format(filepath.name))
+
+    f.close()
+
+
 if __name__ == '__main__':
     # make_rps()
     # make_halpha_rps()
@@ -2591,15 +2969,18 @@ if __name__ == '__main__':
     # make_rps_plots()
     # make_halpha_rps_plots()
     # make_stic_inversion_files()
-    # make_stic_inversion_files(rps=[0, 1, 4, 5, 6, 7, 8, 9, 11, 14, 16, 17, 19, 22, 23, 24, 25, 26, 27, 28, 29])
+    # make_stic_inversion_files(rps=[2, 8, 19, 23])
+    # make_stic_inversion_files(rps=[2, 8, 19, 20, 23, 29])
     # make_stic_inversion_files(rps=[2, 3, 10, 12, 13, 15, 18, 21])
-    # make_stic_inversion_files(rps=[20])
+    # make_stic_inversion_files(rps=[26, 27])
     # make_stic_inversion_files_halpha_ca_both(rps=[0, 1, 2, 4, 5, 7, 9, 10, 11, 13, 14, 17, 18, 28, 29])
     # make_stic_inversion_files_halpha_ca_both(rps=[3, 6, 8, 12, 15, 16, 19, 20, 22, 23, 25])
     # make_stic_inversion_files_halpha_ca_both(rps=[21, 24])
     # make_stic_inversion_files_halpha_ca_both(rps=[26, 27])
-    generate_input_atmos_file(length=30, name='median')
-    # generate_input_atmos_file(length=30, temp=[[-8, -6, -4.5, -3.8, -2.9, -1.8, -0.9, 0, 1.2], [9000, 5500, 4500, 4200, 4500, 5000, 5500, 6000, 8000]], vlos=[[-8, -6, -4, -2, 0, 2], [2e5, 2e5, 2e5, 2e5, 2e5, 2e5]], blong=0, name='median')
+    # file = '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/stic/stic_run_ktt/ca_rps_stic_profiles_x_20_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_7_vt_4_falc_atmos.nc'
+    # generate_input_atmos_file(length=4, name='emission', file=file, index=[0], vlos_multiplier=[1])
+    # generate_smoothed_atmos_parameters()
+    # generate_input_atmos_file(length=6, temp=[[-8, -6, -5, -4.1, -3.1, -2.2, -0.9, 0, 1.2], [11e3, 9e3, 7000, 6000, 4000, 4200, 4500, 4700, 5e3]], vlos=[[-8, -6, -4, -2, 0, 2], [20e5, -5e5, -3e5, 0, 0, 0]], blong=0, name='shock')
     # generate_input_atmos_file(length=5, temp=[[-8, -6, -4, -2, 0, 2], [7000, 5000, 4000, 5000, 7000, 10000]], vlos=[[-8, -6, -4, -2, 0, 2], [2e5, 2e5, 2e5, 2e5, 2e5, 2e5]], blong=100, name='emission')
     # generate_input_atmos_file(length=21, temp=[[-8, -6, -4, -2, 0, 2], [9000, 7000, 5000, 6000, 8000, 10000]], vlos=[[-8, -6, -4, -2, 0, 2], [2e5, 2e5, 2e5, 2e5, 2e5, 2e5]], blong=0, name='quiet')
     # generate_input_atmos_file(length=1, temp=[[-8, -6, -4, -2, 0, 2], [11000, 7000, 5000, 6000, 8000, 10000]], vlos=[[-8, -6, -4, -2, 0, 2], [-10e5, -5e5, -3e3, 1e5, 0, 0]], blong=-450, name='red')
@@ -2629,6 +3010,116 @@ if __name__ == '__main__':
     # make_emission_retry(indices=np.array([ 4, 21, 22, 24, 25, 29, 50, 51, 62, 91, 92, 95]))
     # make_emission_retry_retry(indices=np.array([17, 19]))
     # generate_actual_inversion_files_quiet()
+
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_30_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_4_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_30_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_4_vt_4_falc_profs.nc',
+    #     indices=np.array([0, 3, 4, 6, 7, 9, 10, 13, 15, 17, 18, 22, 24, 25, 26, 28]),
+    #     rps=np.array([0, 3, 4, 6, 7, 9, 10, 13, 15, 17, 18, 22, 24, 25, 26, 28]),
+    #     rps_name='quiet_nominal',
+    #     stic_plot_pathname='Plots',
+    #     total=30,
+    #     previous_output_filename='combined_output_gaussian_blurred.nc'
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_1_12_14_21_27_y_1.nc_level_5_alt_alt_cycle_2_t_9_vl_6_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_1_12_14_21_27_y_1.nc_level_5_alt_alt_cycle_2_t_9_vl_6_vt_4_falc_profs.nc',
+    #     indices=np.array([2]),
+    #     rps=np.array([14]),
+    #     rps_name='quiet_14',
+    #     stic_plot_pathname='Plots_quiet_v2',
+    #     total=30,
+    #     previous_output_filename='combined_output_gaussian_blurred.nc'
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_1_12_27_y_1.nc_level_5_alt_alt_cycle_1_t_10_vl_7_vt_5_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_1_12_27_y_1.nc_level_5_alt_alt_cycle_1_t_10_vl_7_vt_5_falc_profs.nc',
+    #     indices=np.array([0, 1, 2]),
+    #     rps=np.array([1, 12, 27]),
+    #     rps_name='quiet_1_12_27',
+    #     stic_plot_pathname='Plots_quiet_1_12_27',
+    #     total=30,
+    #     previous_output_filename='combined_output_gaussian_blurred.nc'
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_21_y_1.nc_level_5_alt_alt_cycle_2_t_10_vl_7_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_21_y_1.nc_level_5_alt_alt_cycle_2_t_10_vl_7_vt_4_falc_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([21]),
+    #     rps_name='quiet_21',
+    #     stic_plot_pathname='Plots_21',
+    #     total=30,
+    #     previous_output_filename='combined_output_gaussian_blurred.nc'
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_2_8_19_23_y_1.nc_level_5_alt_alt_cycle_5_t_7_vl_7_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_2_8_19_23_y_1.nc_level_5_alt_alt_cycle_5_t_7_vl_7_vt_4_falc_profs.nc',
+    #     indices=np.array([0, 1, 2, 3]),
+    #     rps=np.array([2, 8, 19, 23]),
+    #     rps_name='quiet_2_8_19_23',
+    #     stic_plot_pathname='Plots_2_8_19_23_c1',
+    #     total=30,
+    #     previous_output_filename='combined_output_gaussian_blurred.nc'
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_2_8_19_20_23_29_y_1.nc_level_5_alt_alt_cycle_3_t_7_vl_7_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_2_8_19_20_23_29_y_1.nc_level_5_alt_alt_cycle_3_t_7_vl_7_vt_4_falc_profs.nc',
+    #     indices=np.array([5]),
+    #     rps=np.array([29]),
+    #     rps_name='quiet_29',
+    #     stic_plot_pathname='Plots_2_8_19_20_23_29_c4',
+    #     total=30,
+    #     previous_output_filename='combined_output_gaussian_blurred.nc'
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_20_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_7_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_20_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_7_vt_4_falc_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([20]),
+    #     rps_name='quiet_20',
+    #     stic_plot_pathname='Plots_20_c1',
+    #     total=30,
+    #     previous_output_filename='combined_output_gaussian_blurred.nc'
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_5_11_16_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_7_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_5_11_16_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_7_vt_4_falc_profs.nc',
+    #     indices=np.array([0, 2]),
+    #     rps=np.array([5, 16]),
+    #     rps_name='quiet_5_16',
+    #     stic_plot_pathname='Plots_5_11_16_c1',
+    #     total=30,
+    #     previous_output_filename='combined_output_gaussian_blurred.nc'
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_11_y_1.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_11_y_1.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_falc_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([11]),
+    #     rps_name='quiet_11',
+    #     stic_plot_pathname='Plots_11_c2',
+    #     total=30,
+    #     previous_output_filename='combined_output_gaussian_blurred.nc'
+    # )
+
+    # generate_actual_inversion_files_quiet()
     # generate_actual_inversion_files_median_profile()
     # generate_actual_inversion_files_emission()
     # generate_actual_inversion_files_opposite_polarity()
@@ -2640,11 +3131,38 @@ if __name__ == '__main__':
     # generate_mean_files_for_inversions_from_coordinates(12, 40, 1, 'emission')
     # generate_mean_files_for_inversions_from_coordinates(13, 17, 1, 'quiet')
     # generate_mean_files_for_inversions_from_coordinates(10, 34, 1, 'spot')
-    # merge_atmospheres()
-    # merge_output_profiles()
+    # merge_rp_atmosphere()
+    merge_atmospheres()
+    merge_output_profiles()
     # generate_actual_inversion_pixels((np.array([12, 12]), np.array([49, 31])))
     # generate_actual_inversion_pixels((np.array([12]), np.array([40])))
     # generate_input_atmos_file(length=2, temp=[[-8, -6, -4, -2, 0, 2], [11000, 7000, 5000, 6000, 8000, 10000]], vlos=[[-8, -6, -4, -2, 0, 2], [-10e5, -5e5, -3e3, 1e5, 0, 0]], blong=-200, name='red')
     # generate_input_atmos_file(length=1, temp=[[-8, -6, -4, -2, 0, 2], [11000, 7000, 5000, 6000, 8000, 10000]], vlos=[[-8, -6, -4, -2, 0, 2], [20e5, -6e5, -3e5, -1e5, 0, 0]], blong=-200, name='blue')
     # make_pixels_inversion_result_plots(nodes_temp=[-4.5, -3.8, -2.9, -1.8, -0.9, 0], nodes_vlos=[-4.5, -1], nodes_vturb=[-5, -4, -3, -1], nodes_blos=[-4.5, -1])
     # generate_file_for_rp_response_function()
+
+    # datestring = '20230527'
+    # timestring = '074428'
+    # y1 = 15
+    # y2 = 65
+    # x1 = 3
+    # x2 = 53
+    # generate_actual_inversion_files(
+    #     datestring, timestring, y1, y2, x1, x2
+    # )
+
+    # datestring = '20230527'
+    # timestring = '074428'
+    # y1 = 15
+    # y2 = 65
+    # x1 = 3
+    # x2 = 53
+    # get_magnetic_field_estimate(datestring, y1, y2, x1, x2)
+    #
+    # datestring = '20230527'
+    # timestring = '074428'
+    # y1 = 15
+    # y2 = 65
+    # x1 = 3
+    # x2 = 53
+    # get_magnetic_field_estimate_hmi(datestring, y1, y2, x1, x2)

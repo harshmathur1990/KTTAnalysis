@@ -51,7 +51,7 @@ def approximate_stray_light_and_sigma(
     continuum=1.0,
     indices=None
 ):
-    if indices == None:
+    if indices is None:
         indices = np.arange(line_profile.size)
 
     fwhm = np.linspace(2, 30, 50)
@@ -72,13 +72,6 @@ def approximate_stray_light_and_sigma(
 
     for i, _sig in enumerate(sigma):
         for j, k_value in enumerate(k_values):
-            # degraded_atlas = (
-            #     atlas_profile + (k_value * continuum)
-            # ) / (1 + k_value)
-            # degraded_atlas = scipy.ndimage.gaussian_filter(
-            #     degraded_atlas,
-            #     _sig
-            # )
             degraded_atlas = scipy.ndimage.gaussian_filter(
                 (1 - k_value) * atlas_profile,
                 _sig
