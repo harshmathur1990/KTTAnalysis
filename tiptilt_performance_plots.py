@@ -370,11 +370,15 @@ def make_tiptilt_polarimeter_performance_plots(index=3):
         ]
     )
 
-    ca_indices = np.array([390, 391, 392, 393, 394, 395, 396, 397, 398, 399, 400, 401, 402,
-       403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415,
-       416, 417, 418, 419, 420, 421, 422, 423, 424, 425, 426, 427, 428,
-       429, 430, 431, 432, 433, 434, 435, 436, 437, 438, 439, 440, 441,
-       442, 443, 444])
+    ca_indices = np.array(
+        [
+            390, 391, 392, 393, 394, 395, 396, 397, 398, 399, 400, 401, 402,
+            403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415,
+            416, 417, 418, 419, 420, 421, 422, 423, 424, 425, 426, 427, 428,
+            429, 430, 431, 432, 433, 434, 435, 436, 437, 438, 439, 440, 441,
+            442, 443, 444
+        ]
+    )
 
     data00 = np.sqrt(np.mean(np.square(no_tiptilt_halpha[index, :, 21:50, halpha_indices].T / 2), 2))
     data01 = np.sqrt(np.mean(np.square(tiptilt_halpha[index, 18:, 35:, halpha_indices].T / 2), 2))
@@ -385,11 +389,6 @@ def make_tiptilt_polarimeter_performance_plots(index=3):
     rmsdata01 = np.sqrt(np.mean(np.square(tiptilt_halpha[index, 18:, 35:, halpha_indices].T / 2)))
     rmsdata10 = np.sqrt(np.mean(np.square(no_tiptilt_ca[index, 0:37, 10:39, ca_indices].T / 2)))
     rmsdata11 = np.sqrt(np.mean(np.square(tiptilt_ca[index, :-18, 10:-10, ca_indices].T / 2)))
-
-    # axs[0][0].imshow(data00, cmap='magma', origin='lower', vmin=0, vmax=0.09, extent=extent)
-    # im01 = axs[0][1].imshow(data01, cmap='magma', origin='lower', vmin=0, vmax=0.09, extent=extent)
-    # axs[1][0].imshow(data10, cmap='magma', origin='lower', vmin=0, vmax=0.03, extent=extent)
-    # im11 = axs[1][1].imshow(data11, cmap='magma', origin='lower', vmin=0, vmax=0.03, extent=extent)
 
     bins = np.arange(0, 0.08, 0.001)
 
@@ -539,6 +538,323 @@ def make_tiptilt_polarimeter_performance_plots(index=3):
         3: 'V'
     }
     plt.savefig(write_path / 'Polarization_noise_comparison_{}.pdf'.format(name_map[index]), format='pdf', dpi=300)
+
+
+def make_tiptilt_polarimeter_performance_plots_alternate(line=0):
+    # base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
+
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/')
+
+    no_tiptilt_directory = base_path / '20230520'
+
+    tiptilt_directory = base_path / '20230603'
+
+    no_tiptilt_halpha, _ = sunpy.io.read_file(no_tiptilt_directory / 'Level-3' / 'residuals_075906_DETECTOR_1.fits')[0]
+    no_tiptilt_ca, _ = sunpy.io.read_file(base_path / '20230519' / 'Level-3' / 'residuals_101327_DETECTOR_2.fits')[0]
+
+    tiptilt_halpha, _ = sunpy.io.read_file(tiptilt_directory / 'Level-3' / 'residuals_073616_DETECTOR_1.fits')[0]
+    tiptilt_ca, _ = sunpy.io.read_file(tiptilt_directory / 'Level-3' / 'residuals_073616_DETECTOR_3.fits')[0]
+
+    plt.close('all')
+
+    font = {'size': 8}
+
+    matplotlib.rc('font', **font)
+
+    sns.set_style("ticks")
+
+    fig, axs = plt.subplots(2, 3, figsize=(7, 4.66))
+
+    extent = [0, 37 * 0.6, 0, 29 * 0.6]
+
+    halpha_indices = np.array(
+        [
+            685, 686, 687, 688, 689, 690, 691, 692, 693, 694, 695, 696, 697,
+            698, 699, 700, 701, 702, 703, 704, 705, 706, 707, 708, 709, 710,
+            711, 712, 713, 714, 715, 716, 717, 718, 719, 720, 721, 722, 723,
+            724, 725, 726, 727, 728, 729, 730, 731, 732, 733, 734, 735, 736,
+            737, 738, 739
+        ]
+    )
+
+    ca_indices = np.array(
+        [
+            390, 391, 392, 393, 394, 395, 396, 397, 398, 399, 400, 401, 402,
+            403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415,
+            416, 417, 418, 419, 420, 421, 422, 423, 424, 425, 426, 427, 428,
+            429, 430, 431, 432, 433, 434, 435, 436, 437, 438, 439, 440, 441,
+            442, 443, 444
+        ]
+    )
+
+    if line == 0:
+        data00 = np.sqrt(np.mean(np.square(no_tiptilt_halpha[1, :, 21:50, halpha_indices].T / 2), 2))
+        data01 = np.sqrt(np.mean(np.square(no_tiptilt_halpha[2, :, 21:50, halpha_indices].T / 2), 2))
+        data02 = np.sqrt(np.mean(np.square(no_tiptilt_halpha[3, :, 21:50, halpha_indices].T / 2), 2))
+        data10 = np.sqrt(np.mean(np.square(tiptilt_halpha[1, 18:, 35:, halpha_indices].T / 2), 2))
+        data11 = np.sqrt(np.mean(np.square(tiptilt_halpha[2, 18:, 35:, halpha_indices].T / 2), 2))
+        data12 = np.sqrt(np.mean(np.square(tiptilt_halpha[3, 18:, 35:, halpha_indices].T / 2), 2))
+
+        rmsdata00 = np.sqrt(np.mean(np.square(no_tiptilt_halpha[1, :, 21:50, halpha_indices].T / 2)))
+        rmsdata01 = np.sqrt(np.mean(np.square(no_tiptilt_halpha[2, :, 21:50, halpha_indices].T / 2)))
+        rmsdata02 = np.sqrt(np.mean(np.square(no_tiptilt_halpha[3, :, 21:50, halpha_indices].T / 2)))
+        rmsdata10 = np.sqrt(np.mean(np.square(tiptilt_halpha[1, 18:, 35:, halpha_indices].T / 2)))
+        rmsdata11 = np.sqrt(np.mean(np.square(tiptilt_halpha[2, 18:, 35:, halpha_indices].T / 2)))
+        rmsdata12 = np.sqrt(np.mean(np.square(tiptilt_halpha[3, 18:, 35:, halpha_indices].T / 2)))
+
+        meandata00 = np.round(np.mean(np.abs(no_tiptilt_halpha[1, :, 21:50, halpha_indices].T / 2)), 3)
+        meandata01 = np.round(np.mean(np.abs(no_tiptilt_halpha[2, :, 21:50, halpha_indices].T / 2)), 3)
+        meandata02 = np.round(np.mean(np.abs(no_tiptilt_halpha[3, :, 21:50, halpha_indices].T / 2)), 3)
+        meandata10 = np.round(np.mean(np.abs(tiptilt_halpha[1, 18:, 35:, halpha_indices].T / 2)), 3)
+        meandata11 = np.round(np.mean(np.abs(tiptilt_halpha[2, 18:, 35:, halpha_indices].T / 2)), 3)
+        meandata12 = np.round(np.mean(np.abs(tiptilt_halpha[3, 18:, 35:, halpha_indices].T / 2)), 3)
+
+        print(
+            '{} - {} - {} - {} - {} - {}'.format(
+                meandata00, meandata01, meandata02,
+                meandata10, meandata11, meandata12
+            )
+        )
+
+    else:
+        data00 = np.sqrt(np.mean(np.square(no_tiptilt_ca[1, 0:37, 10:39, ca_indices].T / 2), 2))
+        data01 = np.sqrt(np.mean(np.square(no_tiptilt_ca[2, 0:37, 10:39, ca_indices].T / 2), 2))
+        data02 = np.sqrt(np.mean(np.square(no_tiptilt_ca[3, 0:37, 10:39, ca_indices].T / 2), 2))
+        data10 = np.sqrt(np.mean(np.square(tiptilt_ca[1, :-18, 10:-10, ca_indices].T / 2), 2))
+        data11 = np.sqrt(np.mean(np.square(tiptilt_ca[2, :-18, 10:-10, ca_indices].T / 2), 2))
+        data12 = np.sqrt(np.mean(np.square(tiptilt_ca[3, :-18, 10:-10, ca_indices].T / 2), 2))
+
+        rmsdata00 = np.sqrt(np.mean(np.square(no_tiptilt_ca[1, 0:37, 10:39, ca_indices].T / 2)))
+        rmsdata01 = np.sqrt(np.mean(np.square(no_tiptilt_ca[2, 0:37, 10:39, ca_indices].T / 2)))
+        rmsdata02 = np.sqrt(np.mean(np.square(no_tiptilt_ca[3, 0:37, 10:39, ca_indices].T / 2)))
+        rmsdata10 = np.sqrt(np.mean(np.square(tiptilt_ca[1, :-18, 10:-10, ca_indices].T / 2)))
+        rmsdata11 = np.sqrt(np.mean(np.square(tiptilt_ca[2, :-18, 10:-10, ca_indices].T / 2)))
+        rmsdata12 = np.sqrt(np.mean(np.square(tiptilt_ca[3, :-18, 10:-10, ca_indices].T / 2)))
+
+        meandata00 = np.round(np.mean(np.abs(no_tiptilt_ca[1, 0:37, 10:39, ca_indices].T / 2)), 3)
+        meandata01 = np.round(np.mean(np.abs(no_tiptilt_ca[2, 0:37, 10:39, ca_indices].T / 2)), 3)
+        meandata02 = np.round(np.mean(np.abs(no_tiptilt_ca[3, 0:37, 10:39, ca_indices].T / 2)), 3)
+        meandata10 = np.round(np.mean(np.abs(tiptilt_ca[1, :-18, 10:-10, ca_indices].T / 2)), 3)
+        meandata11 = np.round(np.mean(np.abs(tiptilt_ca[2, :-18, 10:-10, ca_indices].T / 2)), 3)
+        meandata12 = np.round(np.mean(np.abs(tiptilt_ca[3, :-18, 10:-10, ca_indices].T / 2)), 3)
+
+        print(
+            '{} - {} - {} - {} - {} - {}'.format(
+                meandata00, meandata01, meandata02,
+                meandata10, meandata11, meandata12
+            )
+        )
+
+    bins = np.arange(0, 0.08, 0.001)
+
+    element = 'bars'
+
+    kde = False
+
+    sns.histplot(
+        x=data00.flatten(),
+        bins=bins, kde=kde,
+        element=element,
+        ax=axs[0][0],
+        weights=np.ones_like(
+            data00.flatten()
+        ) / len(data00.flatten())
+    )
+    sns.histplot(
+        x=data01.flatten(),
+        bins=bins, kde=kde,
+        element=element,
+        ax=axs[0][1],
+        weights=np.ones_like(
+            data01.flatten()
+        ) / len(data01.flatten())
+    )
+
+    sns.histplot(
+        x=data02.flatten(),
+        bins=bins, kde=kde,
+        element=element,
+        ax=axs[0][2],
+        weights=np.ones_like(
+            data02.flatten()
+        ) / len(data02.flatten())
+    )
+
+    sns.histplot(
+        x=data10.flatten(),
+        bins=bins, kde=kde,
+        element=element,
+        ax=axs[1][0],
+        weights=np.ones_like(
+            data10.flatten()
+        ) / len(data10.flatten())
+    )
+
+    sns.histplot(
+        x=data11.flatten(),
+        bins=bins, kde=kde,
+        element=element,
+        ax=axs[1][1],
+        weights=np.ones_like(
+            data11.flatten()
+        ) / len(data11.flatten())
+    )
+
+    sns.histplot(
+        x=data12.flatten(),
+        bins=bins, kde=kde,
+        element=element,
+        ax=axs[1][2],
+        weights=np.ones_like(
+            data12.flatten()
+        ) / len(data12.flatten())
+    )
+
+    axs[0][0].text(
+        0.35, 0.9,
+        r'rms = {}'.format(np.round(rmsdata00, 3)),
+        transform=axs[0][0].transAxes
+    )
+
+    axs[0][1].text(
+        0.35, 0.9,
+        r'rms = {}'.format(np.round(rmsdata01, 3)),
+        transform=axs[0][1].transAxes
+    )
+
+    axs[0][2].text(
+        0.35, 0.9,
+        r'rms = {}'.format(np.round(rmsdata02, 3)),
+        transform=axs[0][2].transAxes
+    )
+
+    axs[1][0].text(
+        0.35, 0.9,
+        r'rms = {}'.format(np.round(rmsdata10, 3)),
+        transform=axs[1][0].transAxes
+    )
+
+    axs[1][1].text(
+        0.35, 0.9,
+        r'rms = {}'.format(np.round(rmsdata11, 3)),
+        transform=axs[1][1].transAxes
+    )
+
+    axs[1][2].text(
+        0.35, 0.9,
+        r'rms = {}'.format(np.round(rmsdata12, 3)),
+        transform=axs[1][2].transAxes
+    )
+
+    axs[0][0].set_ylim(0, 0.2)
+    axs[0][1].set_ylim(0, 0.2)
+    axs[0][2].set_ylim(0, 0.2)
+    axs[1][0].set_ylim(0, 0.2)
+    axs[1][1].set_ylim(0, 0.2)
+    axs[1][2].set_ylim(0, 0.2)
+
+    axs[0][0].set_xlim(0, 0.08)
+    axs[0][1].set_xlim(0, 0.08)
+    axs[0][2].set_xlim(0, 0.08)
+    axs[1][0].set_xlim(0, 0.08)
+    axs[1][1].set_xlim(0, 0.08)
+    axs[1][2].set_xlim(0, 0.08)
+
+    axs[0][0].yaxis.set_minor_locator(MultipleLocator(0.01))
+    axs[0][1].yaxis.set_minor_locator(MultipleLocator(0.01))
+    axs[0][2].yaxis.set_minor_locator(MultipleLocator(0.01))
+    axs[1][0].yaxis.set_minor_locator(MultipleLocator(0.01))
+    axs[1][1].yaxis.set_minor_locator(MultipleLocator(0.01))
+    axs[1][2].yaxis.set_minor_locator(MultipleLocator(0.01))
+
+    axs[0][0].xaxis.set_minor_locator(MultipleLocator(0.001))
+    axs[0][1].xaxis.set_minor_locator(MultipleLocator(0.001))
+    axs[0][2].xaxis.set_minor_locator(MultipleLocator(0.001))
+    axs[1][0].xaxis.set_minor_locator(MultipleLocator(0.001))
+    axs[1][1].xaxis.set_minor_locator(MultipleLocator(0.001))
+    axs[1][2].xaxis.set_minor_locator(MultipleLocator(0.001))
+
+    yticks = np.arange(0, 0.3, 0.05)
+    xticks = np.arange(0, 0.1, 0.005)
+
+    ytick_labels = [str(np.int64(ytick * 100)) if np.int64(ytick * 100) % 5 == 0 else '' for ytick in yticks]
+    xticks_labels = [str(np.int64(xtick * 100)) if (xtick * 100).is_integer() else '' for xtick in
+                     xticks]  # np.int64(xtick * 100) % 2 == 0 and
+
+    axs[0][0].set_yticks(yticks, ytick_labels)
+    axs[0][1].set_yticks(yticks, ytick_labels)
+    axs[0][2].set_yticks(yticks, ytick_labels)
+    axs[1][0].set_yticks(yticks, ytick_labels)
+    axs[1][1].set_yticks(yticks, ytick_labels)
+    axs[1][2].set_yticks(yticks, ytick_labels)
+
+    # axs[0][0].set_xticks(xticks, xticks_labels)
+    # axs[1][0].set_xticks(xticks, xticks_labels)
+    #
+    # axs[0][1].set_xticks(xticks, xticks_labels)
+    # axs[1][1].set_xticks(xticks, xticks_labels)
+
+    # axs[0][0].set_xlabel('rms noise')
+    axs[0][0].set_ylabel('Counts [%]')
+
+    # axs[0][1].set_xlabel('rms noise')
+    axs[0][1].set_ylabel('')
+
+    # axs[0][2].set_xlabel('rms noise')
+    axs[0][2].set_ylabel('')
+
+    # axs[1][0].set_xlabel('rms noise')
+    axs[1][0].set_ylabel('Counts [%]')
+
+    axs[1][1].set_xlabel('rms noise')
+    axs[1][1].set_ylabel('')
+
+    # axs[1][2].set_xlabel('rms noise')
+    axs[1][2].set_ylabel('')
+
+    axs[0][0].text(
+        -0.35, 0.3,
+        'Without Tip tilt',
+        transform=axs[0][0].transAxes,
+        rotation=90
+    )
+
+    axs[1][0].text(
+        -0.35, 0.35,
+        'With Tip tilt',
+        transform=axs[1][0].transAxes,
+        rotation=90
+    )
+
+    axs[0][0].text(
+        0.3, 1.1,
+        r'$I \rightarrow Q$',
+        transform=axs[0][0].transAxes
+    )
+
+    axs[0][1].text(
+        0.3, 1.1,
+        r'$I \rightarrow U$',
+        transform=axs[0][1].transAxes
+    )
+
+    axs[0][2].text(
+        0.3, 1.1,
+        r'$I \rightarrow V$',
+        transform=axs[0][2].transAxes
+    )
+
+    plt.subplots_adjust(left=0.1, right=0.98, bottom=0.1, top=0.9, wspace=0.3, hspace=0.3)
+
+    # write_path = Path('F:\\Harsh\\CourseworkRepo\\KTTAnalysis\\figures')
+
+    write_path = Path('/home/harsh/CourseworkRepo/KTTAnalysis/figures/')
+
+    name_map = {
+        0: 'Ha',
+        1: 'Ca'
+    }
+    plt.savefig(write_path / 'Polarization_noise_comparison_line_{}.pdf'.format(name_map[line]), format='pdf', dpi=300)
 
 
 def make_context_image():
@@ -813,14 +1129,17 @@ def make_context_image():
 
 
 if __name__ == '__main__':
-    make_tiptilt_polarimeter_performance_plots(index=1)
-
-    make_tiptilt_polarimeter_performance_plots(index=2)
-
-    make_tiptilt_polarimeter_performance_plots(index=3)
+    # make_tiptilt_polarimeter_performance_plots(index=1)
+    #
+    # make_tiptilt_polarimeter_performance_plots(index=2)
+    #
+    # make_tiptilt_polarimeter_performance_plots(index=3)
 
     # make_histogram_tiptilt_plots()
 
     # make_frequency_power_plot()
 
-    make_context_image()
+    # make_context_image()
+
+    make_tiptilt_polarimeter_performance_plots_alternate(0)
+    make_tiptilt_polarimeter_performance_plots_alternate(1)

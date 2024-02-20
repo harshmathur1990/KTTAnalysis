@@ -23,9 +23,9 @@ f = h5py.File(input_file, 'r')
 ind = np.where(f['profiles'][0, 0, 0, :, 0] != 0)[0]
 ind = ind[800:]
 smallind = ind #[50:350]
-all_data = f['profiles'][0, :, :, ind, 0]
+all_data = f['profiles'][0, :, :, ind, 3] / f['profiles'][0, :, :, ind, 0]
 all_data = all_data.reshape(all_data.shape[0] * all_data.shape[1], ind.size)
-framerows = f['profiles'][0, :, :, smallind, 0]
+framerows = f['profiles'][0, :, :, smallind, 3] / f['profiles'][0, :, :, smallind, 0]
 framerows = framerows.reshape(framerows.shape[0] * framerows.shape[1], smallind.size)
 mn = np.mean(framerows, axis=0)
 sd = np.std(framerows, axis=0)
@@ -68,7 +68,7 @@ def do_work(num_clusters):
         sys.stdout.write('Process: {} Fitted KMeans\n'.format(num_clusters))
 
         fout = h5py.File(
-            '{}/out_{}.h5'.format(kmeans_output_dir, num_clusters), 'w'
+            '{}/out_SV_{}.h5'.format(kmeans_output_dir, num_clusters), 'w'
         )
         sys.stdout.write(
             'Process: {} Open file for writing\n'.format(num_clusters)

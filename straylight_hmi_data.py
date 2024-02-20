@@ -197,6 +197,12 @@ def generate_stic_input_files(
         axes=(3, 1, 2, 0)
     )
 
+    prof.write(
+        write_path / 'aligned_hmi_stic_profiles_{}_{}.nc_straylight_secondpass.nc'.format(
+            datestring, timestring
+        )
+    )
+
     if wfe.size%2 == 0:
         kernel_size = wfe.size - 1
     else:
@@ -245,6 +251,7 @@ def generate_input_atmos_file():
 
 def calculate_straylight_from_median_profile(
         nc_file,
+        doppler_file,
         falc_output,
         catalog_file,
         ctl_variation_file,
@@ -269,6 +276,12 @@ def calculate_straylight_from_median_profile(
 
     median_profile = np.mean(data[0, point[0][1]:point[1][1], point[0][0]:point[1][0], :, 0], (0, 1))
 
+    doppler, _ = sunpy.io.read_file(doppler_file)[0]
+
+    doppler_velocity = np.mean(doppler[point[0][1]:point[1][1], point[0][0]:point[1][0]])
+
+    delta_lambda = doppler_velocity * 6173.3352 / 2.99792458e8
+
     wavelength = 6173.34
 
     wave = np.array([-172, -103, -34, 34, 103, 172]) / 1000 + 6173.3352
@@ -281,6 +294,17 @@ def calculate_straylight_from_median_profile(
         indices.append(np.argmin(np.abs(fal['wav'][()] - w)))
 
     indices = np.array(indices)
+
+    pixel_shift = int(np.round(delta_lambda / (fal['wav'][1] - fal['wav'][0]), 0))
+
+    atlas_profile = fal['profiles'][0, 0, 0, :, 0]
+
+    atlas_wave = fal['wav'][()]
+
+    print(pixel_shift)
+    if pixel_shift > 0:
+        atlas_profile = atlas_profile[pixel_shift:]
+        atlas_wave = atlas_wave[:-pixel_shift]
 
     # norm_line, norm_atlas, atlas_wave = normalise_profiles(
     #     median_profile,
@@ -318,9 +342,9 @@ def calculate_straylight_from_median_profile(
 
     result, result_atlas, fwhm, sigma, k_values = approximate_stray_light_and_sigma(
         median_profile,
-        fal['profiles'][0, 0, 0, :, 0],
+        atlas_profile,
         indices=indices,
-        continuum=fal['profiles'][0, 0, 0, :, 0][0]
+        continuum=atlas_profile[0]
     )
 
     r_fwhm = fwhm[np.unravel_index(np.argmin(result), result.shape)[0]]
@@ -336,9 +360,9 @@ def calculate_straylight_from_median_profile(
     stray_corrected_median = (stray_corrected_median - (r_straylight * stray_corrected_median[cont_wave])) / (
                 1 - r_straylight)
 
-    ind_synth = np.argmin(np.abs(fal['wav'][()] - wave[cont_wave]))
+    ind_synth = np.argmin(np.abs(atlas_wave - wave[cont_wave]))
 
-    stic_cgs_calib_factor = stray_corrected_median[cont_wave] / fal['profiles'][0, 0, 0, ind_synth, 0]
+    stic_cgs_calib_factor = stray_corrected_median[cont_wave] / atlas_profile[ind_synth]
 
     f = h5py.File(
         write_path / 'straylight_{}_estimated_profile_{}_timestring_{}.h5'.format(wavelength, datestring, timestring), 'w')
@@ -372,7 +396,7 @@ def calculate_straylight_from_median_profile(
     norm_median_stray, norm_atlas, atlas_wave = normalise_profiles(
         stray_corrected_median,
         wave,
-        scipy.ndimage.gaussian_filter1d(fal['profiles'][0, 0, 0, :, 0], sigma=r_sigma),
+        scipy.ndimage.gaussian_filter1d(atlas_profile, sigma=r_sigma),
         fal['wav'][()],
         cont_wave=wave[cont_wave]
     )
@@ -446,6 +470,8 @@ def generate_stic_input_files_caller(datestring, cont_wave=0, fac_ind_s=None, fa
 
     full_file = level4path / 'combined_hmi_stokes_full_fov.fits'
 
+    doppler_file = level4path / 'hmi.V_720s.20230527_044800_TAI.3.Dopplergram.fits_20230527_074428.fits'
+
     for nc_file in nc_files:
 
         # name_split = nc_file.name.split('_')
@@ -456,7 +482,8 @@ def generate_stic_input_files_caller(datestring, cont_wave=0, fac_ind_s=None, fa
             continue
 
         r_fwhm, r_sigma, r_straylight, wave, wavelength, broadening_km_sec, norm_median_stray, stic_cgs_calib_factor = calculate_straylight_from_median_profile(
-            nc_file=full_file,
+            nc_file=nc_file,
+            doppler_file=doppler_file,
             falc_output=falc_output,
             catalog_file=catalog_file_6563,
             ctl_variation_file=ctl_variation_file,

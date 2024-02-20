@@ -8,19 +8,51 @@ import sunpy.io
 from pathlib import Path
 
 
-def calculate_wfa(filepath, wave_range_0, wave_range_1, line):
+def calculate_wfa(filepath, wave_range_0, wave_range_1, line, transition_skip_list=None, bin_factor=None):
 
     f = h5py.File(filepath, 'r')
 
     ind = np.where(f['profiles'][0, 0, 0, :, 0] != 0)[0]
 
-    relevant_ind = np.where((f['wav'][ind] >= wave_range_0) & (f['wav'][ind] >= wave_range_1))[0]
+    profiles = f['profiles'][0][:, :, ind]
 
-    w = f['wav'][ind][relevant_ind]
+    wave = f['wav'][ind]
 
-    ny, nx, nStokes, nWav = f['profiles'].shape[1], f['profiles'].shape[2], f['profiles'].shape[4], w.shape[0]
+    f.close()
 
-    intensity_level = np.median(f['profiles'][0, :, :, ind[relevant_ind], 0])
+    if bin_factor is not None:
+        if line == 6562:
+            line_indice = np.where(wave < 7000)[0]
+
+            profiles = profiles[:, :, line_indice]
+
+            wave = wave[line_indice]
+
+            wave = np.mean(wave.reshape(wave.shape[0] // bin_factor, bin_factor), 1)
+
+            profiles = np.mean(profiles.reshape(profiles.shape[0], profiles.shape[1], profiles.shape[2] // bin_factor, bin_factor, profiles.shape[3]), 3)
+
+    relevant_ind = np.where((wave >= wave_range_0) & (wave <= wave_range_1))[0]
+
+    if transition_skip_list is not None:
+        skip_ind = list()
+        for transition in transition_skip_list:
+            skip_ind += list(
+                np.where(
+                    (
+                            np.array(wave[relevant_ind]) >= (transition[0] - transition[1])
+                    ) & (
+                            np.array(wave[relevant_ind]) <= (transition[0] + transition[1])
+                    )
+                )[0]
+            )
+        relevant_ind = np.array(list(set(relevant_ind) - set(relevant_ind[skip_ind])))
+
+    w = wave[relevant_ind]
+
+    print(w.shape)
+
+    intensity_level = np.median(profiles[ :, :, relevant_ind, 0])
 
     sig = np.zeros((4, w.size), dtype='float64', order='c')
 
@@ -32,7 +64,7 @@ def calculate_wfa(filepath, wave_range_0, wave_range_1, line):
 
     alpha_Blos = 1
 
-    d = np.transpose(f['profiles'][0, :, :, ind[relevant_ind]], axes=(0, 1, 3, 2))
+    d = np.transpose(profiles[:, :, relevant_ind], axes=(0, 1, 3, 2))
 
     Blos = wfa.getBlos(w, d, sig, lin, alpha_Blos)
 
@@ -48,29 +80,52 @@ def calculate_magnetic_field_for_all(datestring):
 
     datepath = base_path / datestring
 
-    level8path = datepath / 'Level-4-alt'
+    level5path = datepath / 'Level-5-alt-alt'
 
-    all_files = level8path.glob('**/*')
+    all_mag_files = [level5path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc']
 
-    all_mag_files = [file for file in all_files if file.name.startswith('aligned_Ca') and file.name.endswith(
-        '.nc') and 'mag' not in file.name and 'stic_file' not in file.name]
+    transition_skip_list = np.array(
+        [
+            [6560.84, 0.25],
+            [6561.09, 0.1],
+            [6562.1, 0.25],
+            [6563.645, 0.3],
+            [6564.15, 0.35]
+        ]
+    )
 
     for a_mag_file in all_mag_files:
         print(a_mag_file.name)
 
-        magca = calculate_wfa(a_mag_file, 8661.7, 8661.8, 8661)
+        # magha_full_line = calculate_wfa(a_mag_file, 6562.8-1.5, 6562.8+1.5, 6562, transition_skip_list=transition_skip_list, bin_factor=None)
+        #
+        # sunpy.io.write_file(
+        #     level5path / '{}_magha_full_line_spatial.fits'.format(a_mag_file.name),
+        #     magha_full_line, dict(),
+        #     overwrite=True
+        # )
+        #
+        # magha_core = calculate_wfa(a_mag_file, 6562.8-0.15, 6562.8+0.15, 6562, transition_skip_list=transition_skip_list, bin_factor=None)
+        #
+        # sunpy.io.write_file(
+        #     level5path / '{}_magha_core_spatial.fits'.format(a_mag_file.name),
+        #     magha_core, dict(),
+        #     overwrite=True
+        # )
+
+        ca_wing = calculate_wfa(a_mag_file, 8661.7, 8661.8, 8661, transition_skip_list=None, bin_factor=None)
 
         sunpy.io.write_file(
-            level8path / '{}_mag_ca_fe_spatial.fits'.format(a_mag_file.name),
-            magca, dict(),
+            level5path / '{}_ca_wing_spatial.fits'.format(a_mag_file.name),
+            ca_wing, dict(),
             overwrite=True
         )
 
-        magca = calculate_wfa(a_mag_file, 8662.17, 8662.17 + 0.4, 8662)
+        ca_core = calculate_wfa(a_mag_file, 8662.17, 8662.17 + 0.4, 8662, transition_skip_list=None, bin_factor=None)
 
         sunpy.io.write_file(
-            level8path / '{}_mag_ca_core_spatial.fits'.format(a_mag_file.name),
-            magca, dict(),
+            level5path / '{}_ca_core_spatial.fits'.format(a_mag_file.name),
+            ca_core, dict(),
             overwrite=True
         )
 

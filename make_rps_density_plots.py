@@ -50,13 +50,13 @@ stic_path = base_path / 'stic'
 
 input_file = base_path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc_straylight_secondpass.nc'.format(datestring, timestring)
 
+# input_file = base_path / 'aligned_ca_hmi_stic_profiles_20230527_074428.nc_straylight_secondpass.nc'
+
 kmeans_file = base_path / 'out_30_{}_{}.h5'.format(datestring, timestring)
 
-rps_plot_write_dir = base_path / 'PCA_RPs_Plots'
+doppler_file = '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-4-alt-alt/hmi.V_720s.20230527_044800_TAI.3.Dopplergram.fits_20230527_074428.fits'
 
-# falc_file_path = Path(
-#     'F:\\Harsh\\CourseworkRepo\\stic\\example\\falc_nicole_for_stic.nc'
-# )
+rps_plot_write_dir = base_path / 'PCA_RPs_Plots'
 
 falc_file_path = Path(
     '/home/harsh/CourseworkRepo/stic/example/falc_nicole_for_stic.nc'
@@ -91,9 +91,31 @@ def make_rps():
 
     fi = h5py.File(input_file, 'r')
 
+    doppler, _ = sunpy.io.read_file(doppler_file)[0]
+
+    doppler *= (-1e2)
+
     ind = np.where(fi['profiles'][0, 0, 0, :, 0] != 0)[0]
 
-    profiles = fi['profiles'][0, :, :, ind]
+    non_zero_ca = ind[np.where(fi['wav'][ind] >= 8000)]
+
+    non_zero_hmi = ind[np.where(fi['wav'][ind] < 7000)]
+
+    ca_profiles_i = fi['profiles'][0, :, :, non_zero_ca, 0]
+
+    ca_profiles_q = fi['profiles'][0, :, :, non_zero_ca, 1] / fi['profiles'][0, :, :, non_zero_ca, 0]
+
+    ca_profiles_u = fi['profiles'][0, :, :, non_zero_ca, 2] / fi['profiles'][0, :, :, non_zero_ca, 0]
+
+    ca_profiles_v = fi['profiles'][0, :, :, non_zero_ca, 3] / fi['profiles'][0, :, :, non_zero_ca, 0]
+
+    hmi_profiles_i = fi['profiles'][0, :, :, non_zero_hmi, 0]
+
+    hmi_profiles_q = fi['profiles'][0, :, :, non_zero_hmi, 1] / fi['profiles'][0, :, :, non_zero_hmi, 0]
+
+    hmi_profiles_u = fi['profiles'][0, :, :, non_zero_hmi, 2] / fi['profiles'][0, :, :, non_zero_hmi, 0]
+
+    hmi_profiles_v = fi['profiles'][0, :, :, non_zero_hmi, 3] / fi['profiles'][0, :, :, non_zero_hmi, 0]
 
     keys = ['rps', 'final_labels']
 
@@ -101,22 +123,56 @@ def make_rps():
         if key in list(f.keys()):
             del f[key]
 
-    labels = f['labels_'][()].reshape(profiles.shape[0], profiles.shape[1]).astype(np.int64)
+    labels = f['labels_'][()].reshape(ca_profiles_i.shape[0], ca_profiles_i.shape[1]).astype(np.int64)
 
     f['final_labels'] = labels
 
     total_labels = labels.max() + 1
 
-    rps = np.zeros(
-        (total_labels, ind.size, 4),
+    ca_rps = np.zeros(
+        (total_labels, non_zero_ca.size, 4),
         dtype=np.float64
+    )
+
+    hmi_rps = np.zeros(
+        (total_labels, non_zero_hmi.size, 4),
+        dtype=np.float64
+    )
+
+    doppler_rps = np.zeros(
+        total_labels
     )
 
     for i in range(total_labels):
         a, b = np.where(labels == i)
-        rps[i] = np.mean(profiles[a, b], axis=0)
+        ca_rps[i, :, 0] = np.mean(ca_profiles_i[a, b], axis=0)
+        ca_rps[i, :, 1] = np.mean(ca_profiles_q[a, b], axis=0) * ca_rps[i, :, 0]
+        ca_rps[i, :, 2] = np.mean(ca_profiles_u[a, b], axis=0) * ca_rps[i, :, 0]
+        ca_rps[i, :, 3] = np.mean(ca_profiles_v[a, b], axis=0) * ca_rps[i, :, 0]
+        hmi_rps[i, :, 0] = np.mean(hmi_profiles_i[a, b], axis=0)
+        hmi_rps[i, :, 1] = np.mean(hmi_profiles_q[a, b], axis=0) * hmi_rps[i, :, 0]
+        hmi_rps[i, :, 2] = np.mean(hmi_profiles_u[a, b], axis=0) * hmi_rps[i, :, 0]
+        hmi_rps[i, :, 3] = np.mean(hmi_profiles_v[a, b], axis=0) * hmi_rps[i, :, 0]
+        doppler_rps[i] = np.mean(doppler[a, b], axis=0)
 
-    f['rps'] = rps
+    keys_dict = {
+        'ca_rps': ca_rps,
+        'hmi_rps': hmi_rps,
+        'doppler_rps': doppler_rps
+    }
+
+    for key, value in keys_dict.items():
+        if key not in f.keys():
+            f[key] = value
+        else:
+            f[key][...] = value
+    # f['rps'] = rps
+
+    # f['ca_rps'] = ca_rps
+    #
+    # f['hmi_rps'] = hmi_rps
+    #
+    # f['doppler_rps'] = doppler_rps
 
     fi.close()
 
@@ -155,14 +211,11 @@ def get_data(get_data=True, get_labels=True, get_rps=True, ca=True, crop_indice=
 
         ind = np.where(f['profiles'][0, 0, 0, :, 0] != 0)[0]
 
-        if ca:
-            ind = ind[800:]
-        else:
-            ind = ind[0:800]
+        non_zero_ca = ind[np.where(f['wav'][ind] >= 8000)]
 
-        wave = f['wav'][ind]
+        wave = f['wav'][non_zero_ca]
 
-        whole_data = f['profiles'][0, :, :, ind, :]
+        whole_data = f['profiles'][0, :, :, non_zero_ca, :]
 
         if crop_indice is not None:
             whole_data = whole_data[crop_indice[0][1]:crop_indice[1][1], crop_indice[0][0]:crop_indice[1][0]]
@@ -173,7 +226,7 @@ def get_data(get_data=True, get_labels=True, get_rps=True, ca=True, crop_indice=
 
         whole_data[np.where(np.isinf(whole_data))] = 0
 
-        whole_data = whole_data.reshape(whole_data.shape[0] * whole_data.shape[1], ind.size, 4)
+        whole_data = whole_data.reshape(whole_data.shape[0] * whole_data.shape[1], non_zero_ca.size, 4)
 
         f.close()
 
@@ -187,9 +240,9 @@ def get_data(get_data=True, get_labels=True, get_rps=True, ca=True, crop_indice=
 
     if get_rps:
         if ca:
-            rps = f['rps'][:, 800:]
-        else:
-            rps = f['rps'][:, 0:800]
+            rps = f['ca_rps'][()]
+
+            rps [:, :, 1:4] /= rps[:, :, 0][:, :, np.newaxis]
 
     f.close()
 
@@ -259,12 +312,17 @@ def make_rps_plots(name='RPs'):
                         )
 
                         if a.size > 0:
-                            c, f = get_max_min(whole_data, a, r)
+                            # c, f = get_max_min(whole_data, a, r)
+                            #
+                            # max_8542, min_8542 = c, f
+                            #
+                            # min_8542 = min_8542 * 0.9
+                            # max_8542 = max_8542 * 1.1
 
-                            max_8542, min_8542 = c, f
-
-                            min_8542 = min_8542 * 0.9
-                            max_8542 = max_8542 * 1.1
+                            if r >= 1:
+                                max_8542, min_8542 = 0.25, -0.25
+                            else:
+                                max_8542, min_8542 = 1, 0
 
                             in_bins_8542 = np.linspace(min_8542, max_8542, 1000)
 
@@ -651,43 +709,88 @@ def make_stic_inversion_files(rps=None):
     fi = h5py.File(input_file, 'r')
 
     if rps is None:
-        rps = range(f['rps'].shape[0])
+        ca_rps = range(f['ca_rps'].shape[0])
+        # hmi_rps = range(f['hmi_rps'].shape[0])
+        rps = ca_rps
+    else:
+        ca_rps = rps
+        # hmi_rps = rps
 
     rps = np.array(rps)
+    ca_rps = np.array(ca_rps)
+    # hmi_rps = np.array(hmi_rps)
 
     ind_ca = np.where(fi['wav'][()] >= 8600)[0]
+    # ind_hmi = np.where(fi['wav'][()] < 7000)[0]
 
-    non_zero_ind = np.where(fi['profiles'][0, fi['profiles'].shape[1]//2, fi['profiles'].shape[2]//2, ind_ca, 0] != 0)[0]
+    non_zero_ind_ca = np.where(fi['profiles'][0, fi['profiles'].shape[1]//2, fi['profiles'].shape[2]//2, ind_ca, 0] != 0)[0]
+
+    # non_zero_ind_hmi = np.where(fi['profiles'][0, fi['profiles'].shape[1] // 2, fi['profiles'].shape[2] // 2, ind_hmi, 0] != 0)[0]
 
     ca = sp.profile(
-        nx=rps.size, ny=1, ns=4,
+        nx=ca_rps.size, ny=1, ns=4,
         nw=ind_ca.shape[0]
     )
 
     ca.wav[:] = fi['wav'][ind_ca]
 
-    ca.dat[0, 0, :, non_zero_ind] = np.transpose(
-        f['rps'][()][rps, 800:],
+    ca.dat[0, 0, :, non_zero_ind_ca] = np.transpose(
+        f['ca_rps'][()][ca_rps],
         axes=(1, 0, 2)
     )
 
     weights = np.ones((ind_ca.shape[0], 4)) * 1e16
 
-    weights[non_zero_ind, 0] = 0.006
+    weights[non_zero_ind_ca, 0] = 0.006
 
-    weights[non_zero_ind[50:350], 0] = 0.004
+    weights[non_zero_ind_ca[50:350], 0] = 0.004
 
-    weights[non_zero_ind[150:320], 0] = 0.002
+    weights[non_zero_ind_ca[150:320], 0] = 0.002
 
-    weights[non_zero_ind[210:270], 0] = 0.002/4
+    weights[non_zero_ind_ca[210:270], 0] = 0.002/4
+
+    # weights[non_zero_ind_ca[0:120], 0] = 1e16
+
+    # weights[non_zero_ind_ca[50:350], 3] = 0.004 / 3.5
+    #
+    # weights[non_zero_ind_ca[150:320], 3] = 0.002 / 3.5
+    #
+    # weights[non_zero_ind_ca[210:270], 3] = 0.002 / 4 / 3.5
 
     ca.weights = weights
 
-    if rps.size != f['rps'].shape[0]:
+    # hmi = sp.profile(
+    #     nx=hmi_rps.size, ny=1, ns=4,
+    #     nw=ind_hmi.shape[0]
+    # )
+    #
+    # hmi.wav[:] = fi['wav'][ind_hmi]
+    #
+    # print(hmi.dat[0, 0, :, non_zero_ind_hmi].shape)
+    #
+    # print(np.transpose(
+    #     f['hmi_rps'][()][hmi_rps],
+    #     axes=(1, 0, 2)
+    # ).shape)
+    # hmi.dat[0, 0, :, non_zero_ind_hmi] = np.transpose(
+    #     f['hmi_rps'][()][hmi_rps],
+    #     axes=(1, 0, 2)
+    # )
+    #
+    # weights = np.ones((ind_hmi.shape[0], 4)) * 1e16
+    #
+    # weights[non_zero_ind_hmi, 0] = 0.002
+    #
+    # hmi.weights = weights
+
+    all_profs = ca  # + hmi
+
+    if rps.size != f['ca_rps'].shape[0]:
         writefilename = 'ca_rps_stic_profiles_x_{}_y_1.nc'.format('_'.join([str(_rp) for _rp in rps]))
     else:
         writefilename = 'ca_rps_stic_profiles_x_{}_y_1.nc'.format(rps.size)
-    ca.write(
+
+    all_profs.write(
         stic_path / writefilename
     )
 
@@ -771,7 +874,19 @@ def make_stic_inversion_files_halpha_ca_both(rps=None):
     )
 
 
-def generate_input_atmos_file(length=30, temp=None, vlos=None, blong=0, name='', file=None, index=None, vlos_multiplier=None):
+def generate_input_atmos_file(
+        length=30,
+        temp=None,
+        vlos=None,
+        blong=0,
+        name='',
+        file=None,
+        index=None,
+        vlos_multiplier=None,
+        use_doppler=False,
+        doppler_ltau=None,
+        rps=None
+):
     # f = h5py.File(falc_file_path, 'r')
     #
     # ltau_scale = np.linspace(-8, 1, num=70, endpoint=True)
@@ -792,16 +907,16 @@ def generate_input_atmos_file(length=30, temp=None, vlos=None, blong=0, name='',
     #     vl = cs(ltau_scale)
     # else:
     #     vl = np.interp(ltau_scale, f['ltau500'][0, 0, 0], f['vlos'][0, 0, 0])
-    # if isinstance(blong, tuple):
-    #     a, b = np.polyfit(blong[0], blong[1], 1)
-    #     bl = a * ltau_scale + b
-    # else:
-    #     bl = blong
+    # # if isinstance(blong, tuple):
+    # #     a, b = np.polyfit(blong[0], blong[1], 1)
+    # #     bl = a * ltau_scale + b
+    # # else:
+    # #     bl = blong
     #
     # m.temp[:, :, :] = tp
     #
     # m.vlos[:, :, :] = vl
-
+    #
     # m.vturb[:, :, :] = 0
 
     # m.Bln[:, :, :] = bl
@@ -833,12 +948,34 @@ def generate_input_atmos_file(length=30, temp=None, vlos=None, blong=0, name='',
         m.vturb[:, :, :] = np.interp(ltau_scale, f['ltau500'][0, 0, index], f['vturb'][0, 0, index])
 
     else:
-        for ii, i_index, i_vlos_multiplier in zip(range(length), index, vlos_multiplier):
+        for en_index, (ii, i_index, i_vlos_multiplier) in enumerate(zip(range(length), index, vlos_multiplier)):
+
             m.temp[0, 0, ii] = np.interp(ltau_scale, f['ltau500'][0, 0, i_index], f['temp'][0, 0, i_index])
 
-            m.vlos[0, 0, ii] = np.interp(ltau_scale, f['ltau500'][0, 0, i_index], f['vlos'][0, 0, i_index]) * i_vlos_multiplier
-
             m.vturb[0, 0, ii] = np.interp(ltau_scale, f['ltau500'][0, 0, i_index], f['vturb'][0, 0, i_index])
+
+            if use_doppler is False:
+
+                m.vlos[0, 0, ii] = np.interp(ltau_scale, f['ltau500'][0, 0, i_index], f['vlos'][0, 0, i_index]) * i_vlos_multiplier
+
+            else:
+
+                fk = h5py.File(kmeans_file, 'r')
+
+                doppler_ltau_index = list()
+
+                for dlt in doppler_ltau:
+                    doppler_ltau_index.append(np.argmin(np.abs(f['ltau500'][0, 0, i_index] - dlt)))
+
+                doppler_ltau_index.append(0)
+
+                doppler_ltau_index = np.array(doppler_ltau_index)
+
+                vlos = list(f['vlos'][0, 0, i_index][doppler_ltau_index[:-1]]) + [fk['doppler_rps'][rps[en_index]]]
+
+                m.vlos[0, 0, ii] = np.interp(ltau_scale, f['ltau500'][0, 0, i_index][doppler_ltau_index], vlos) * i_vlos_multiplier
+
+                fk.close()
 
     f.close()
 
@@ -1174,13 +1311,13 @@ def make_ca_rps_inversion_result_plots():
     stic_run_1 = Path(
         '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/stic/stic_run_ktt/'
     )
-    rps_atmos_result = stic_run_1 / 'ca_rps_stic_profiles_x_2_8_19_23_y_1.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_falc_atmos.nc'
+    rps_atmos_result = stic_run_1 / 'ca_rps_stic_profiles_x_1_12_27_y_1.nc_level_5_alt_alt_cycle_1_t_10_vl_7_vt_5_falc_atmos.nc'
 
-    rps_profs_result = stic_run_1 / 'ca_rps_stic_profiles_x_2_8_19_23_y_1.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_falc_profs.nc'
+    rps_profs_result = stic_run_1 / 'ca_rps_stic_profiles_x_1_12_27_y_1.nc_level_5_alt_alt_cycle_1_t_10_vl_7_vt_5_falc_profs.nc'
 
-    rps_input_profs = stic_run_1 / 'ca_rps_stic_profiles_x_2_8_19_23_y_1.nc'
+    rps_input_profs = stic_run_1 / 'ca_rps_stic_profiles_x_1_12_27_y_1.nc'
 
-    rps_plot_write_dir = stic_run_1 / 'Plots_20_c1'
+    rps_plot_write_dir = stic_run_1 / 'Plots_quiet_1_12_27'
 
     finputprofs = h5py.File(rps_input_profs, 'r')
 
@@ -1188,11 +1325,13 @@ def make_ca_rps_inversion_result_plots():
 
     fprofsresult = h5py.File(rps_profs_result, 'r')
 
-    ind = np.where(finputprofs['profiles'][0, 0, 0, :, 0] != 0)[0]
+    ca_ind = np.where(finputprofs['wav'][()] >= 8600)[0]
+
+    ind = ca_ind[np.where(finputprofs['profiles'][0, 0, 0, ca_ind, 0] != 0)[0]]
 
     bin_factor = None
 
-    for i, k in enumerate([2, 8, 19, 23]):
+    for i, k in enumerate([1, 12, 27]):
         print(i)
         plt.close('all')
 
@@ -1292,6 +1431,116 @@ def make_ca_rps_inversion_result_plots():
         plt.clf()
 
         plt.cla()
+
+    # hmi_ind = np.where(finputprofs['wav'][()] < 7000)[0]
+    #
+    # ind = hmi_ind[np.where(finputprofs['profiles'][0, 0, 0, hmi_ind, 0] != 0)[0]]
+    #
+    # bin_factor = None
+    #
+    # for i, k in enumerate([0, 3, 4, 6, 7, 9, 10, 13, 15, 17, 18, 22, 24, 25, 26, 28]):
+    #     print(i)
+    #     plt.close('all')
+    #
+    #     plt.clf()
+    #
+    #     plt.cla()
+    #
+    #     fig, axs = plt.subplots(3, 2, figsize=(12, 18))
+    #
+    #     if bin_factor is not None and bin_factor > 1:
+    #
+    #         axs[0][0].plot(
+    #             downgrde_resolution(finputprofs['wav'][ind], bin_factor),
+    #             downgrde_resolution(finputprofs['profiles'][0, 0, i, ind, 0], bin_factor),
+    #             color='orange',
+    #             linewidth=0.5
+    #         )
+    #
+    #         axs[0][0].plot(
+    #             downgrde_resolution(fprofsresult['wav'][ind], bin_factor),
+    #             downgrde_resolution(fprofsresult['profiles'][0, 0, i, ind, 0], bin_factor),
+    #             color='brown',
+    #             linewidth=0.5
+    #         )
+    #
+    #         axs[0][0].axvline(x=6173.3352, color='black', linestyle='--')
+    #
+    #         axs[0][1].plot(
+    #             downgrde_resolution(finputprofs['wav'][ind], bin_factor),
+    #             downgrde_resolution(finputprofs['profiles'][0, 0, i, ind, 3] / finputprofs['profiles'][0, 0, i, ind, 0],
+    #                                 bin_factor),
+    #             color='orange',
+    #             linewidth=0.5
+    #         )
+    #
+    #         axs[0][1].plot(
+    #             downgrde_resolution(fprofsresult['wav'][ind], bin_factor),
+    #             downgrde_resolution(
+    #                 fprofsresult['profiles'][0, 0, i, ind, 3] / fprofsresult['profiles'][0, 0, i, ind, 0], bin_factor),
+    #             color='brown',
+    #             linewidth=0.5
+    #         )
+    #
+    #     else:
+    #         axs[0][0].plot(finputprofs['wav'][ind], finputprofs['profiles'][0, 0, i, ind, 0], color='orange',
+    #                        linewidth=0.5)
+    #
+    #         axs[0][0].plot(fprofsresult['wav'][ind], fprofsresult['profiles'][0, 0, i, ind, 0], color='brown',
+    #                        linewidth=0.5)
+    #
+    #         axs[0][0].axvline(x=6173.3352, color='black', linestyle='--')
+    #
+    #         axs[0][1].plot(
+    #             finputprofs['wav'][ind],
+    #             finputprofs['profiles'][0, 0, i, ind, 3] / finputprofs['profiles'][0, 0, i, ind, 0],
+    #             color='orange',
+    #             linewidth=0.5
+    #         )
+    #
+    #         axs[0][1].plot(
+    #             fprofsresult['wav'][ind],
+    #             fprofsresult['profiles'][0, 0, i, ind, 3] / fprofsresult['profiles'][0, 0, i, ind, 0],
+    #             color='brown',
+    #             linewidth=0.5
+    #         )
+    #
+    #     axs[1][0].plot(fatmosresult['ltau500'][0, 0, 0], fatmosresult['temp'][0, 0, i] / 1e3, color='brown')
+    #
+    #     axs[1][1].plot(fatmosresult['ltau500'][0, 0, 0], fatmosresult['vlos'][0, 0, i] / 1e5, color='brown')
+    #
+    #     axs[2][0].plot(fatmosresult['ltau500'][0, 0, 0], fatmosresult['vturb'][0, 0, i] / 1e5, color='brown')
+    #
+    #     axs[2][1].plot(fatmosresult['ltau500'][0, 0, 0], fatmosresult['blong'][0, 0, i], color='brown')
+    #
+    #     axs[0][0].set_xlabel(r'$\lambda(\AA)$')
+    #     axs[0][0].set_ylabel(r'$I/I_{c}$')
+    #
+    #     axs[0][1].set_xlabel(r'$\lambda(\AA)$')
+    #     axs[0][1].set_ylabel(r'$V/I$')
+    #
+    #     axs[1][0].set_xlabel(r'$\log(\tau_{500})$')
+    #     axs[1][0].set_ylabel(r'$T[kK]$')
+    #
+    #     axs[1][1].set_xlabel(r'$\log(\tau_{500})$')
+    #     axs[1][1].set_ylabel(r'$V_{LOS}[Kms^{-1}]$')
+    #
+    #     axs[2][0].set_xlabel(r'$\log(\tau_{500})$')
+    #     axs[2][0].set_ylabel(r'$V_{turb}[Kms^{-1}]$')
+    #
+    #     axs[2][1].set_xlabel(r'$\log(\tau_{500})$')
+    #     axs[2][1].set_ylabel(r'$B_{long}[G]$')
+    #
+    #     fig.tight_layout()
+    #
+    #     fig.savefig(rps_plot_write_dir / 'RPs_{}.pdf'.format(k), format='pdf', dpi=300)
+    #
+    #     plt.close('all')
+    #
+    #     plt.clf()
+    #
+    #     plt.cla()
+
     fprofsresult.close()
 
     fatmosresult.close()
@@ -1608,13 +1857,14 @@ def get_blong(pb, cb):
     return ltau * e1 + f1
 
 
-def generate_actual_inversion_files(datestring, timestring, y1, y2, x1, x2):
+def generate_actual_inversion_files(datestring, timestring, y1, y2, x1, x2, ha=False):
 
     # temp, vlos, vturb = get_rp_atmos_common(datestring)
 
     base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/{}/Level-5-alt-alt'.format(datestring))
     actual_file = base_path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc_straylight_secondpass.nc'.format(datestring, timestring)
-    write_path = base_path / 'stic/stic_run_ktt'
+    hmi_file = base_path / 'aligned_hmi_stic_profiles_20230527_074428.nc_straylight_secondpass.nc'
+    write_path = base_path / 'stic'
 
     # kmeans_file = base_path / 'out_30_{}_{}.h5'.format(datestring, timestring)
 
@@ -1626,7 +1876,11 @@ def generate_actual_inversion_files(datestring, timestring, y1, y2, x1, x2):
 
     fi = h5py.File(actual_file, 'r')
 
-    ind_ca = np.where(fi['wav'][()] >= 8600)[0]
+    if ha is True:
+        ind_ca = np.where(fi['wav'][()] <= 7000)[0]
+
+    else:
+        ind_ca = np.where(fi['wav'][()] >= 8600)[0]
 
     non_zero_ind = np.where(fi['profiles'][0, fi['profiles'].shape[1] // 2, fi['profiles'].shape[2] // 2, ind_ca, 0] != 0)[0]
 
@@ -1635,27 +1889,94 @@ def generate_actual_inversion_files(datestring, timestring, y1, y2, x1, x2):
         nw=ind_ca.shape[0]
     )
 
+    data = fi['profiles'][0, y1:y2, x1:x2, ind_ca[non_zero_ind]]
+
+    # data[:, :, :, 1:4] /= data[:, :, :, 0][:, :, :, np.newaxis]
+    #
+    # mm = np.mean(data[:, :, 0:40], axis=2)
+    #
+    # data = data - mm[:, :, np.newaxis, :]
+    #
+    # data[:, :, :, 1:4] *= data[:, :, :, 0][:, :, :, np.newaxis]
+
     ca.wav[:] = fi['wav'][ind_ca]
 
-    ca.dat[0, :, :] = fi['profiles'][0, y1:y2, x1:x2, ind_ca]
+    ca.dat[0, :, :, non_zero_ind] = np.transpose(
+        data,
+        axes=(2, 0, 1, 3)
+    )
 
     fi.close()
 
-    weights = np.ones((ind_ca.shape[0], 4)) * 1e16
+    if ha is False:
 
-    weights[non_zero_ind, 0] = 0.006
+        weights = np.ones((ind_ca.shape[0], 4)) * 1e16
 
-    weights[non_zero_ind[50:350], 0] = 0.004
+        weights[non_zero_ind, 0] = 0.006
 
-    weights[non_zero_ind[150:320], 0] = 0.002
+        weights[non_zero_ind[50:350], 0] = 0.004
 
-    weights[non_zero_ind[210:270], 0] = 0.002 / 4
+        weights[non_zero_ind[150:320], 0] = 0.002
 
-    ca.weights = weights
+        weights[non_zero_ind[210:270], 0] = 0.002 / 4
 
-    ca.write(
-        write_path / '{}_stic_file.nc'.format(actual_file.name)
-    )
+        weights[non_zero_ind[50:350], 3] = 0.004 / 5.5
+
+        weights[non_zero_ind[150:320], 3] = 0.002 / 5.5
+
+        weights[non_zero_ind[210:270], 3] = 0.002 / 4 / 5.5
+
+        ca.weights = weights
+
+    # fmi = h5py.File(hmi_file, 'r')
+    #
+    # ind_hmi = np.where(fmi['wav'][()] >= 6000)[0]
+    #
+    # non_zero_ind = np.where(fmi['profiles'][0, fmi['profiles'].shape[1] // 2, fmi['profiles'].shape[2] // 2, ind_hmi, 0] != 0)[0]
+    #
+    # hmi = sp.profile(
+    #     nx=x2-x1, ny=y2-y1, ns=4,
+    #     nw=ind_hmi.shape[0]
+    # )
+    #
+    # hmi.wav[:] = fmi['wav'][ind_hmi]
+    #
+    # hmi.dat[0, :, :] = fmi['profiles'][0, y1:y2, x1:x2, ind_hmi]
+    #
+    # fmi.close()
+    #
+    # weights = np.ones((ind_hmi.shape[0], 4)) * 1e16
+    #
+    # weights[non_zero_ind, 0] = 0.002
+    #
+    # hmi.weights = weights
+
+    all_prof = ca  # + hmi
+
+    if y2-y1 == 50:
+
+        if ha is False:
+            all_prof.write(
+                write_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass_stic_file.nc'
+            )
+
+        else:
+
+            all_prof.write(
+                write_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass_ha_stic_file.nc'
+            )
+
+    else:
+
+        if ha is False:
+            all_prof.write(
+                write_path / 'aligned_Ca_stic_profiles_20230527_074428.nc_straylight_secondpass.nc'
+            )
+
+        else:
+            all_prof.write(
+                write_path / 'aligned_Ca_stic_profiles_20230527_074428.nc_straylight_secondpass_ha.nc'
+            )
 
     # f = h5py.File(falc_file_path, 'r')
     #
@@ -1786,7 +2107,10 @@ def generate_actual_inversion_files_kmeans(
     rps_name,
     stic_plot_pathname,
     total,
-    previous_output_filename=None
+    previous_output_filename=None,
+    smooth_thermo=None,
+    include_b=False,
+    smooth_b=None
 ):
 
     y1 = 15
@@ -1865,6 +2189,15 @@ def generate_actual_inversion_files_kmeans(
 
     ca_8.weights[:, :] = frpf['weights'][()]
 
+    if include_b is True:
+        non_zero_ind_ca = np.where(frpf['weights'][:, 0] < 5 )[0]
+
+        ca_8.weights[non_zero_ind_ca[50:350], 3] = 0.004 / 3.5
+
+        ca_8.weights[non_zero_ind_ca[150:320], 3] = 0.002 / 3.5
+
+        ca_8.weights[non_zero_ind_ca[210:270], 3] = 0.002 / 4 / 3.5
+
     frpf.close()
 
     ca_8.write(
@@ -1887,11 +2220,28 @@ def generate_actual_inversion_files_kmeans(
 
         fpo = h5py.File(previous_output, 'r')
 
-        m.temp[0, 0] = fpo['temp'][0][a_arr, b_arr]
+        if smooth_thermo is None:
+            m.temp[0, 0] = fpo['temp'][0][a_arr, b_arr]
 
-        m.vlos[0, 0] = fpo['vlos'][0][a_arr, b_arr]
+            m.vlos[0, 0] = fpo['vlos'][0][a_arr, b_arr]
 
-        m.vturb[0, 0] = fpo['vturb'][0][a_arr, b_arr]
+            m.vturb[0, 0] = fpo['vturb'][0][a_arr, b_arr]
+        else:
+            m.temp[0, 0] = scipy.ndimage.gaussian_filter(fpo['temp'][0], sigma=smooth_thermo / 2.355, axes=(0, 1))[a_arr, b_arr]
+
+            m.vlos[0, 0] = scipy.ndimage.gaussian_filter(fpo['vlos'][0], sigma=smooth_thermo / 2.355, axes=(0, 1))[a_arr, b_arr]
+
+            m.vturb[0, 0] = scipy.ndimage.gaussian_filter(fpo['vturb'][0], sigma=smooth_thermo / 2.355, axes=(0, 1))[a_arr, b_arr]
+
+        if include_b is True:
+
+            if smooth_b is None:
+
+                m.Bln[0, 0] = fpo['blong'][0][a_arr, b_arr]
+
+            else:
+
+                m.Bln[0, 0] = scipy.ndimage.gaussian_filter(fpo['blong'][0], sigma=smooth_b/2.355, axes=(0, 1))[a_arr, b_arr]
 
         fpo.close()
 
@@ -2240,31 +2590,7 @@ def generate_actual_inversion_pixels(pixels):
     )
 
 
-def merge_atmospheres():
-    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/pca_kmeans_fulldata_inversions/')
-    pixel_files = [
-        base_path / 'pixel_indices_quiet_nominal_total_1695.h5',
-        base_path / 'pixel_indices_quiet_29_total_62.h5',
-        base_path / 'pixel_indices_quiet_21_total_80.h5',
-        base_path / 'pixel_indices_quiet_20_total_61.h5',
-        base_path / 'pixel_indices_quiet_14_total_70.h5',
-        base_path / 'pixel_indices_quiet_11_total_40.h5',
-        base_path / 'pixel_indices_quiet_5_16_total_68.h5',
-        base_path / 'pixel_indices_quiet_2_8_19_23_total_280.h5',
-        base_path / 'pixel_indices_quiet_1_12_27_total_144.h5'
-    ]
-
-    atmos_files = [
-        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_nominal_total_1695.nc_level_5_alt_alt_cycle_2_t_7_vl_4_vt_4_atmos.nc',
-        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_29_total_62.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_atmos.nc',
-        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_21_total_80.nc_level_5_alt_alt_cycle_2_t_10_vl_7_vt_4_atmos.nc',
-        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_20_total_61.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_atmos.nc',
-        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_14_total_70.nc_level_5_alt_alt_cycle_2_t_9_vl_6_vt_4_atmos.nc',
-        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_11_total_40.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_atmos.nc',
-        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_5_16_total_68.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_atmos.nc',
-        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_2_8_19_23_total_280.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_atmos.nc',
-        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_1_12_27_total_144.nc_level_5_alt_alt_cycle_2_t_10_vl_7_vt_5_atmos.nc'
-    ]
+def merge_atmospheres(base_path, pixel_files, atmos_files):
 
     keys = [
         'temp',
@@ -2278,7 +2604,7 @@ def merge_atmospheres():
         'rho',
     ]
 
-    f = h5py.File(base_path / 'combined_output_cycle_2.nc', 'w')
+    f = h5py.File(base_path / 'combined_output_cycle_B_T_1_retry_all.nc', 'w')
     outs = dict()
     for key in keys:
         outs[key] = np.zeros((1, 50, 50, 70), dtype=np.float64)
@@ -2297,37 +2623,13 @@ def merge_atmospheres():
     f.close()
 
 
-def merge_output_profiles():
-    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/pca_kmeans_fulldata_inversions/')
-    pixel_files = [
-        base_path / 'pixel_indices_quiet_nominal_total_1695.h5',
-        base_path / 'pixel_indices_quiet_29_total_62.h5',
-        base_path / 'pixel_indices_quiet_21_total_80.h5',
-        base_path / 'pixel_indices_quiet_20_total_61.h5',
-        base_path / 'pixel_indices_quiet_14_total_70.h5',
-        base_path / 'pixel_indices_quiet_11_total_40.h5',
-        base_path / 'pixel_indices_quiet_5_16_total_68.h5',
-        base_path / 'pixel_indices_quiet_2_8_19_23_total_280.h5',
-        base_path / 'pixel_indices_quiet_1_12_27_total_144.h5'
-    ]
-
-    atmos_files = [
-        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_nominal_total_1695.nc_level_5_alt_alt_cycle_2_t_7_vl_4_vt_4_profs.nc',
-        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_29_total_62.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_profs.nc',
-        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_21_total_80.nc_level_5_alt_alt_cycle_2_t_10_vl_7_vt_4_profs.nc',
-        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_20_total_61.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_profs.nc',
-        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_14_total_70.nc_level_5_alt_alt_cycle_2_t_9_vl_6_vt_4_profs.nc',
-        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_11_total_40.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_profs.nc',
-        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_5_16_total_68.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_profs.nc',
-        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_2_8_19_23_total_280.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_profs.nc',
-        base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_1_12_27_total_144.nc_level_5_alt_alt_cycle_2_t_10_vl_7_vt_5_profs.nc'
-    ]
+def merge_output_profiles(base_path, pixel_files, atmos_files):
 
     keys = [
         'profiles'
     ]
 
-    f = h5py.File(base_path / 'combined_output_profs_cycle_2.nc', 'w')
+    f = h5py.File(base_path / 'combined_output_profs_cycle_B_T_1_retry_all.nc', 'w')
     outs = dict()
     for key in keys:
         outs[key] = np.zeros((1, 50, 50, 2308, 4), dtype=np.float64)
@@ -2775,21 +3077,25 @@ def interp_variable(tau1, tau2, val_1, val_2, ltau500_scale):
 
 
 def get_magnetic_field_estimate(datestring, y1, y2, x1, x2):
-    level4path = Path(
-        '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/{}/Level-4-alt/'.format(
+    level5path = Path(
+        '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/{}/Level-5-alt-alt/'.format(
             datestring
         )
     )
 
-    stic_path = level4path / 'stic/stic_run_ktt/'
+    stic_path = level5path / 'stic/stic_run_ktt/'
 
     vec_interp_variable = np.vectorize(interp_variable, signature='(),(),(),(),(n)->(n)')
 
-    ca_fe_mag, _ = sunpy.io.read_file(level4path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_mag_ca_fe.fits')[0]
+    ca_fe_mag, _ = sunpy.io.read_file(level5path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_ca_wing_spatial.fits')[0]
 
-    ca_core_mag, _ = sunpy.io.read_file(level4path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_mag_ca_core.fits')[0]
+    falt = h5py.File(stic_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass_stic_file.nc_level_5_alt_alt_cycle_B_retry_all_t_0_vl_0_vt_0_blong_2_atmos.nc', 'r')
 
-    f = h5py.File(stic_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_stic_file.nc_run_7_diff_kmeans_cycle_1_t_10_vl_4_vt_4_atmos_guess_blos.nc', 'r')
+    ca_core_mag = scipy.ndimage.gaussian_filter(falt['blong'][0, :, :, 22], sigma=3 / 2.355)
+
+    falt.close()
+
+    f = h5py.File(stic_path / 'combined_output_cycle_initial_guess_retry_all.nc', 'r')
 
     ltau500 = f['ltau500'][0, 0, 0]
 
@@ -2797,14 +3103,14 @@ def get_magnetic_field_estimate(datestring, y1, y2, x1, x2):
 
     mag_strata = vec_interp_variable(
         -4.5, -1,
-        ca_core_mag[y1:y2, x1:x2], ca_fe_mag[y1:y2, x1:x2],
+        ca_core_mag, ca_fe_mag[y1:y2, x1:x2],
         ltau500
     )
 
     mag_strata = np.abs(mag_strata) * -1
 
     f = h5py.File(
-        stic_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_stic_file.nc_run_7_diff_kmeans_cycle_1_t_10_vl_4_vt_4_atmos_guess_blos.nc',
+        stic_path / 'combined_output_cycle_initial_guess_retry_all.nc',
         'r+')
 
     f['blong'][...] = mag_strata[np.newaxis]
@@ -2962,6 +3268,303 @@ def generate_smoothed_atmos_parameters():
     f.close()
 
 
+def generate_actual_inversion_files_kmeans_retry(
+    actual_filename,
+    failed_filename_prof,
+    failed_filename_atmos,
+    hmimag_filename,
+    rp_filename,
+    rp_prof_filename,
+    indices, rps,
+    rps_name,
+    stic_plot_pathname,
+    total,
+    previous_output_filename=None,
+    smooth_thermo=None,
+    include_b=False,
+    smooth_b=None
+):
+
+    y1 = 15
+    y2 = 65
+    x1 = 3
+    x2 = 53
+
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/')
+    hmipath = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-4-alt-alt/aligned_hmi')
+    stic_path = base_path / 'stic/stic_run_ktt/'
+    plots = stic_path / stic_plot_pathname
+    actual_file = base_path / actual_filename
+    write_path = base_path / 'pca_kmeans_fulldata_inversions'
+
+    failed_filepath_prof = write_path / failed_filename_prof
+    failed_filepath_atmos = write_path / failed_filename_atmos
+    hmimag_filepath = hmipath / hmimag_filename
+
+    f_failed_prof = h5py.File(failed_filepath_prof, 'r')
+    f_failed_atmos = h5py.File(failed_filepath_atmos, 'r')
+
+    a, b = np.where(f_failed_prof['profiles'][0, :, :, 8, 0] == 0)
+
+    mask = np.zeros((y2-y1, x2-x1), dtype=np.int64)
+
+    mask[a, b] = 1
+
+    if include_b is True:
+        hmimag, _ = sunpy.io.read_file(hmimag_filepath)[0]
+        hmimag = hmimag[y1:y2, x1:x2]
+        c, d = np.where(np.sign(f_failed_atmos['blong'][0, :, :, 53]) != np.sign(hmimag))
+
+        medf = scipy.ndimage.median_filter(f_failed_atmos['blong'][0, :, :, 53], size=3)
+
+        hh = np.abs(medf - f_failed_atmos['blong'][0, :, :, 53])
+
+        g, h = np.where(hh > 100)
+
+        mask[c, d] = 1
+
+        mask[g, h] = 1
+
+    e, f = np.where(mask == 1)
+
+    rp_file = plots / rp_filename
+
+    rp_prof_file = plots / rp_prof_filename
+
+    temp, vlos, vturb = get_rp_atmos(
+        rp_file,
+        indices=indices,
+        rps=rps,
+        total=total
+    )
+
+    kmeans_file = base_path / 'out_30_20230527_074428.h5'
+
+    fk = h5py.File(kmeans_file, 'r')
+
+    labels = fk['final_labels'][()][y1:y2, x1:x2]
+
+    labels = labels[e, f]
+
+    fk.close()
+
+    a_list = list()
+    # b_list = list()
+    rp_final = list()
+
+    for profile in rps:
+        a = np.where(labels == profile)[0]
+        a_list += list(a)
+        # b_list += list(b)
+        rp_final += list(np.ones(a.shape[0]) * profile)
+
+    if len(a_list) == 0:
+        return
+
+    a_arr = np.array(a_list)
+    # b_arr = np.array(b_list)
+    rp_final = np.array(rp_final)
+
+    pixel_indices = np.zeros((3, a_arr.size), dtype=np.int64)
+
+    pixel_indices[0] = e[a_arr]
+    pixel_indices[1] = f[a_arr]
+    pixel_indices[2] = rp_final
+
+    fo = h5py.File(
+        write_path / 'pixel_indices_retry_all_cycle_B_T_1_{}_total_{}.h5'.format(
+            rps_name, rp_final.size
+        ), 'w'
+    )
+
+    fo['pixel_indices'] = pixel_indices
+
+    fo.close()
+
+    faf = h5py.File(actual_file, 'r')
+
+    wc8 = faf['wav'][()]
+
+    ic8 = np.where(faf['profiles'][0, 0, 0, :, 0] != 0)[0]
+
+    ca_8 = sp.profile(nx=rp_final.size, ny=1, ns=4, nw=wc8.size)
+
+    ca_8.wav[:] = wc8[:]
+
+    ca_8.dat[0, 0, :, ic8, :] = np.transpose(faf['profiles'][0][e[a_arr], f[a_arr], :, :][:, ic8], axes=(1, 0, 2))
+
+    faf.close()
+
+    frpf = h5py.File(rp_prof_file, 'r')
+
+    ca_8.weights[:, :] = frpf['weights'][()]
+
+    if include_b is True:
+        non_zero_ind_ca = np.where(frpf['weights'][:, 0] < 5)[0]
+
+        ca_8.weights[non_zero_ind_ca[50:350], 3] = 0.004 / 3.5
+
+        ca_8.weights[non_zero_ind_ca[150:320], 3] = 0.002 / 3.5
+
+        ca_8.weights[non_zero_ind_ca[210:270], 3] = 0.002 / 4 / 3.5
+
+    frpf.close()
+
+    ca_8.write(
+        write_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_{}_total_{}.nc'.format(rps_name, rp_final.size)
+    )
+
+    fa = h5py.File(rp_file, 'r')
+
+    m = sp.model(nx=a_arr.size, ny=1, nt=1, ndep=fa['temp'].shape[3])
+
+    m.ltau[:, :, :] = fa['ltau500'][0, 0, 0]
+
+    fa.close()
+
+    m.pgas[:, :, :] = 1.0
+
+    if previous_output_filename is not None:
+
+        previous_output = stic_path / previous_output_filename
+
+        fpo = h5py.File(previous_output, 'r')
+
+        if smooth_thermo is None:
+            m.temp[0, 0] = fpo['temp'][0][e[a_arr], f[a_arr]]
+
+            m.vlos[0, 0] = fpo['vlos'][0][e[a_arr], f[a_arr]]
+
+            m.vturb[0, 0] = fpo['vturb'][0][e[a_arr], f[a_arr]]
+        else:
+            m.temp[0, 0] = scipy.ndimage.gaussian_filter(fpo['temp'][0], sigma=smooth_thermo / 2.355, axes=(0, 1))[e[a_arr], f[a_arr]]
+
+            m.vlos[0, 0] = scipy.ndimage.gaussian_filter(fpo['vlos'][0], sigma=smooth_thermo / 2.355, axes=(0, 1))[e[a_arr], f[a_arr]]
+
+            m.vturb[0, 0] = scipy.ndimage.gaussian_filter(fpo['vturb'][0], sigma=smooth_thermo / 2.355, axes=(0, 1))[e[a_arr], f[a_arr]]
+
+        if include_b is True:
+
+            if smooth_b is None:
+
+                m.Bln[0, 0] = np.abs(medf[e[a_arr], f[a_arr]][:, np.newaxis]) * np.sign(hmimag[e[a_arr], f[a_arr]][:, np.newaxis])
+
+            else:
+
+                m.Bln[0, 0] = -1 * np.abs(scipy.ndimage.gaussian_filter(hmimag, sigma=smooth_b/2.355, axes=(0, 1))[e[a_arr], f[a_arr]][:, np.newaxis])
+
+        fpo.close()
+
+    else:
+        m.temp[0, 0] = temp[labels[e[a_arr], f[a_arr]]]
+
+        m.vlos[0, 0] = vlos[labels[e[a_arr], f[a_arr]]]
+
+        m.vturb[0, 0] = vturb[labels[e[a_arr], f[a_arr]]]
+
+    write_filename = write_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_{}_total_{}_initial_atmos.nc'.format(
+        rps_name, rp_final.size
+    )
+
+    m.write(str(write_filename))
+
+
+def update_atmospheres(pixel_files, atmos_files, base_atmos):
+
+    keys = [
+        'temp',
+        'vlos',
+        'vturb',
+        'blong',
+        'nne',
+        'z',
+        'ltau500',
+        'pgas',
+        'rho',
+    ]
+
+    fr = h5py.File(base_atmos, 'r')
+
+    f = h5py.File(base_path / 'combined_output_cycle_B_T_2_retry_all.nc', 'w')
+    outs = dict()
+    for key in keys:
+        outs[key] = fr[key][()]
+
+    fr.close()
+
+    for pixel_file, atmos_file in zip(pixel_files, atmos_files):
+        pf = h5py.File(pixel_file, 'r')
+        af = h5py.File(atmos_file, 'r')
+        for key in keys:
+            a, b, rp = pf['pixel_indices'][0], pf['pixel_indices'][1], pf['pixel_indices'][2]
+            outs[key][0, a, b] = af[key][0, 0]
+        pf.close()
+        af.close()
+
+    for key in keys:
+        f[key] = outs[key]
+    f.close()
+
+
+def update_output_profiles(pixel_files, atmos_files, base_atmos):
+
+    keys = [
+        'profiles'
+    ]
+
+    fr = h5py.File(base_atmos, 'r')
+    f = h5py.File(base_path / 'combined_output_profs_cycle_B_T_2_retry_all.nc', 'w')
+    outs = dict()
+    for key in keys:
+        outs[key] = fr[key][()]
+
+    fr.close()
+
+    for pixel_file, atmos_file in zip(pixel_files, atmos_files):
+        pf = h5py.File(pixel_file, 'r')
+        af = h5py.File(atmos_file, 'r')
+        for key in keys:
+            a, b, rp = pf['pixel_indices'][0], pf['pixel_indices'][1], pf['pixel_indices'][2]
+            outs[key][0, a, b] = af[key][0, 0]
+        pf.close()
+        af.close()
+
+    for key in keys:
+        f[key] = outs[key]
+
+    af = h5py.File(atmos_file, 'r')
+    f['wav'] = af['wav'][()]
+    af.close()
+
+    f.close()
+
+
+def make_atmos_for_response_functions(points):
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/pca_kmeans_fulldata_inversions/')
+
+    fa = h5py.File(base_path / 'combined_output_cycle_B_T_2_retry_all.nc', 'r')
+
+    for indice, point in enumerate(points):
+
+        m = sp.model(nx=15, ny=1, nt=1, ndep=fa['temp'].shape[3])
+
+        m.ltau[:, :, :] = fa['ltau500'][0, 0, 0]
+
+        m.pgas[:, :, :] = 1
+
+        m.temp[0, 0, :] = fa['temp'][0, point[1], point[0]]
+
+        m.vlos[0, 0, :] = fa['vlos'][0, point[1], point[0]]
+
+        m.vturb[0, 0, :] = fa['vturb'][0, point[1], point[0]]
+
+        m.Bln[0, 0, :] = fa['blong'][0, point[1], point[0]]
+
+        m.write(base_path / 'response_atmospheres_more_{}.nc'.format(indice))
+
+    fa.close()
+
+
 if __name__ == '__main__':
     # make_rps()
     # make_halpha_rps()
@@ -2969,18 +3572,27 @@ if __name__ == '__main__':
     # make_rps_plots()
     # make_halpha_rps_plots()
     # make_stic_inversion_files()
-    # make_stic_inversion_files(rps=[2, 8, 19, 23])
-    # make_stic_inversion_files(rps=[2, 8, 19, 20, 23, 29])
+    # make_stic_inversion_files(rps=[1, 12, 27])
+    # make_stic_inversion_files(rps=[8, 19])
     # make_stic_inversion_files(rps=[2, 3, 10, 12, 13, 15, 18, 21])
     # make_stic_inversion_files(rps=[26, 27])
     # make_stic_inversion_files_halpha_ca_both(rps=[0, 1, 2, 4, 5, 7, 9, 10, 11, 13, 14, 17, 18, 28, 29])
     # make_stic_inversion_files_halpha_ca_both(rps=[3, 6, 8, 12, 15, 16, 19, 20, 22, 23, 25])
     # make_stic_inversion_files_halpha_ca_both(rps=[21, 24])
     # make_stic_inversion_files_halpha_ca_both(rps=[26, 27])
-    # file = '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/stic/stic_run_ktt/ca_rps_stic_profiles_x_20_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_7_vt_4_falc_atmos.nc'
-    # generate_input_atmos_file(length=4, name='emission', file=file, index=[0], vlos_multiplier=[1])
+    # file = '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/stic/stic_run_ktt/Plots_retry_all_8_19/ca_rps_stic_profiles_x_8_19_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_atmos.nc'
+    # generate_input_atmos_file(
+    #     length=1,
+    #     name='quiet',
+    #     file=file,
+    #     index=1,
+    #     vlos_multiplier=1,
+    #     use_doppler=False,
+    #     doppler_ltau=False,
+    #     rps=None
+    # )
     # generate_smoothed_atmos_parameters()
-    # generate_input_atmos_file(length=6, temp=[[-8, -6, -5, -4.1, -3.1, -2.2, -0.9, 0, 1.2], [11e3, 9e3, 7000, 6000, 4000, 4200, 4500, 4700, 5e3]], vlos=[[-8, -6, -4, -2, 0, 2], [20e5, -5e5, -3e5, 0, 0, 0]], blong=0, name='shock')
+    # generate_input_atmos_file(length=2, temp=[[-8, -6, -5, -4.1, -3.1, -2.2, -0.9, 0, 1.2], [13e3, 10e3, 8e3, 6e3, 4000, 4200, 4500, 4700, 5e3]], vlos=[[-8, -6, -4, -2, 0, 2], [10e5, 8e5, -4e5, 0, 0, 0]], blong=0, name='shock')
     # generate_input_atmos_file(length=5, temp=[[-8, -6, -4, -2, 0, 2], [7000, 5000, 4000, 5000, 7000, 10000]], vlos=[[-8, -6, -4, -2, 0, 2], [2e5, 2e5, 2e5, 2e5, 2e5, 2e5]], blong=100, name='emission')
     # generate_input_atmos_file(length=21, temp=[[-8, -6, -4, -2, 0, 2], [9000, 7000, 5000, 6000, 8000, 10000]], vlos=[[-8, -6, -4, -2, 0, 2], [2e5, 2e5, 2e5, 2e5, 2e5, 2e5]], blong=0, name='quiet')
     # generate_input_atmos_file(length=1, temp=[[-8, -6, -4, -2, 0, 2], [11000, 7000, 5000, 6000, 8000, 10000]], vlos=[[-8, -6, -4, -2, 0, 2], [-10e5, -5e5, -3e3, 1e5, 0, 0]], blong=-450, name='red')
@@ -3020,7 +3632,10 @@ if __name__ == '__main__':
     #     rps_name='quiet_nominal',
     #     stic_plot_pathname='Plots',
     #     total=30,
-    #     previous_output_filename='combined_output_gaussian_blurred.nc'
+    #     previous_output_filename='combined_output_cycle_B4.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
     # )
     #
     # generate_actual_inversion_files_kmeans(
@@ -3032,7 +3647,10 @@ if __name__ == '__main__':
     #     rps_name='quiet_14',
     #     stic_plot_pathname='Plots_quiet_v2',
     #     total=30,
-    #     previous_output_filename='combined_output_gaussian_blurred.nc'
+    #     previous_output_filename='combined_output_cycle_B4.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
     # )
     #
     # generate_actual_inversion_files_kmeans(
@@ -3044,7 +3662,10 @@ if __name__ == '__main__':
     #     rps_name='quiet_1_12_27',
     #     stic_plot_pathname='Plots_quiet_1_12_27',
     #     total=30,
-    #     previous_output_filename='combined_output_gaussian_blurred.nc'
+    #     previous_output_filename='combined_output_cycle_B4.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
     # )
     #
     # generate_actual_inversion_files_kmeans(
@@ -3056,7 +3677,10 @@ if __name__ == '__main__':
     #     rps_name='quiet_21',
     #     stic_plot_pathname='Plots_21',
     #     total=30,
-    #     previous_output_filename='combined_output_gaussian_blurred.nc'
+    #     previous_output_filename='combined_output_cycle_B4.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
     # )
     #
     # generate_actual_inversion_files_kmeans(
@@ -3068,7 +3692,10 @@ if __name__ == '__main__':
     #     rps_name='quiet_2_8_19_23',
     #     stic_plot_pathname='Plots_2_8_19_23_c1',
     #     total=30,
-    #     previous_output_filename='combined_output_gaussian_blurred.nc'
+    #     previous_output_filename='combined_output_cycle_B4.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
     # )
     #
     # generate_actual_inversion_files_kmeans(
@@ -3080,7 +3707,10 @@ if __name__ == '__main__':
     #     rps_name='quiet_29',
     #     stic_plot_pathname='Plots_2_8_19_20_23_29_c4',
     #     total=30,
-    #     previous_output_filename='combined_output_gaussian_blurred.nc'
+    #     previous_output_filename='combined_output_cycle_B4.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
     # )
     #
     # generate_actual_inversion_files_kmeans(
@@ -3092,7 +3722,10 @@ if __name__ == '__main__':
     #     rps_name='quiet_20',
     #     stic_plot_pathname='Plots_20_c1',
     #     total=30,
-    #     previous_output_filename='combined_output_gaussian_blurred.nc'
+    #     previous_output_filename='combined_output_cycle_B4.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
     # )
     #
     # generate_actual_inversion_files_kmeans(
@@ -3104,7 +3737,10 @@ if __name__ == '__main__':
     #     rps_name='quiet_5_16',
     #     stic_plot_pathname='Plots_5_11_16_c1',
     #     total=30,
-    #     previous_output_filename='combined_output_gaussian_blurred.nc'
+    #     previous_output_filename='combined_output_cycle_B4.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
     # )
     #
     # generate_actual_inversion_files_kmeans(
@@ -3116,24 +3752,15 @@ if __name__ == '__main__':
     #     rps_name='quiet_11',
     #     stic_plot_pathname='Plots_11_c2',
     #     total=30,
-    #     previous_output_filename='combined_output_gaussian_blurred.nc'
+    #     previous_output_filename='combined_output_cycle_B4.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
     # )
 
-    # generate_actual_inversion_files_quiet()
-    # generate_actual_inversion_files_median_profile()
-    # generate_actual_inversion_files_emission()
-    # generate_actual_inversion_files_opposite_polarity()
-    # generate_init_atmos_from_previous_result()
-    # generate_actual_inversion_files_spot()
-    # generate_actual_inversion_files_mean()
-    # generate_mean_files_for_inversions_from_coordinates(8, 51, 1, 'opposite_polarity')
-    # generate_mean_files_for_inversions_from_coordinates(13, 51, 1, 'opposite_polarity')
-    # generate_mean_files_for_inversions_from_coordinates(12, 40, 1, 'emission')
-    # generate_mean_files_for_inversions_from_coordinates(13, 17, 1, 'quiet')
-    # generate_mean_files_for_inversions_from_coordinates(10, 34, 1, 'spot')
     # merge_rp_atmosphere()
-    merge_atmospheres()
-    merge_output_profiles()
+    # merge_atmospheres()
+    # merge_output_profiles()
     # generate_actual_inversion_pixels((np.array([12, 12]), np.array([49, 31])))
     # generate_actual_inversion_pixels((np.array([12]), np.array([40])))
     # generate_input_atmos_file(length=2, temp=[[-8, -6, -4, -2, 0, 2], [11000, 7000, 5000, 6000, 8000, 10000]], vlos=[[-8, -6, -4, -2, 0, 2], [-10e5, -5e5, -3e3, 1e5, 0, 0]], blong=-200, name='red')
@@ -3148,7 +3775,8 @@ if __name__ == '__main__':
     # x1 = 3
     # x2 = 53
     # generate_actual_inversion_files(
-    #     datestring, timestring, y1, y2, x1, x2
+    #     datestring, timestring, y1, y2, x1, x2,
+    #     ha=False
     # )
 
     # datestring = '20230527'
@@ -3166,3 +3794,1005 @@ if __name__ == '__main__':
     # x1 = 3
     # x2 = 53
     # get_magnetic_field_estimate_hmi(datestring, y1, y2, x1, x2)
+
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_retry_2.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_retry_2.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_30_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_4_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_30_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_4_vt_4_falc_profs.nc',
+    #     indices=np.array([0, 3, 4, 6, 7, 9, 10, 13, 15, 17, 18, 22, 24, 25, 26, 28]),
+    #     rps=np.array([0, 3, 4, 6, 7, 9, 10, 13, 15, 17, 18, 22, 24, 25, 26, 28]),
+    #     rps_name='quiet_nominal',
+    #     stic_plot_pathname='Plots',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_retry_2.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_retry_2.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_retry_2.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_1_12_14_21_27_y_1.nc_level_5_alt_alt_cycle_2_t_9_vl_6_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_1_12_14_21_27_y_1.nc_level_5_alt_alt_cycle_2_t_9_vl_6_vt_4_falc_profs.nc',
+    #     indices=np.array([2]),
+    #     rps=np.array([14]),
+    #     rps_name='quiet_14',
+    #     stic_plot_pathname='Plots_quiet_v2',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_retry_2.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_retry_2.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_retry_2.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_1_12_27_y_1.nc_level_5_alt_alt_cycle_1_t_10_vl_7_vt_5_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_1_12_27_y_1.nc_level_5_alt_alt_cycle_1_t_10_vl_7_vt_5_falc_profs.nc',
+    #     indices=np.array([0, 1, 2]),
+    #     rps=np.array([1, 12, 27]),
+    #     rps_name='quiet_1_12_27',
+    #     stic_plot_pathname='Plots_quiet_1_12_27',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_retry_2.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_retry_2.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_retry_2.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_21_y_1.nc_level_5_alt_alt_cycle_2_t_10_vl_7_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_21_y_1.nc_level_5_alt_alt_cycle_2_t_10_vl_7_vt_4_falc_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([21]),
+    #     rps_name='quiet_21',
+    #     stic_plot_pathname='Plots_21',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_retry_2.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_retry_2.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_retry_2.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_2_8_19_23_y_1.nc_level_5_alt_alt_cycle_5_t_7_vl_7_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_2_8_19_23_y_1.nc_level_5_alt_alt_cycle_5_t_7_vl_7_vt_4_falc_profs.nc',
+    #     indices=np.array([0, 1, 2, 3]),
+    #     rps=np.array([2, 8, 19, 23]),
+    #     rps_name='quiet_2_8_19_23',
+    #     stic_plot_pathname='Plots_2_8_19_23_c1',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_retry_2.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_retry_2.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_retry_2.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_2_8_19_20_23_29_y_1.nc_level_5_alt_alt_cycle_3_t_7_vl_7_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_2_8_19_20_23_29_y_1.nc_level_5_alt_alt_cycle_3_t_7_vl_7_vt_4_falc_profs.nc',
+    #     indices=np.array([5]),
+    #     rps=np.array([29]),
+    #     rps_name='quiet_29',
+    #     stic_plot_pathname='Plots_2_8_19_20_23_29_c4',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_retry_2.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_retry_2.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_retry_2.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_20_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_7_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_20_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_7_vt_4_falc_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([20]),
+    #     rps_name='quiet_20',
+    #     stic_plot_pathname='Plots_20_c1',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_retry_2.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_retry_2.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_retry_2.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_5_11_16_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_7_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_5_11_16_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_7_vt_4_falc_profs.nc',
+    #     indices=np.array([0, 2]),
+    #     rps=np.array([5, 16]),
+    #     rps_name='quiet_5_16',
+    #     stic_plot_pathname='Plots_5_11_16_c1',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_retry_2.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_retry_2.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_retry_2.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_11_y_1.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_11_y_1.nc_level_5_alt_alt_cycle_2_t_7_vl_7_vt_4_falc_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([11]),
+    #     rps_name='quiet_11',
+    #     stic_plot_pathname='Plots_11_c2',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_retry_2.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_3_7_13_18_25_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_3_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_3_7_13_18_25_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_3_vt_4_profs.nc',
+    #     indices=np.array([0, 1, 2, 3, 4]),
+    #     rps=np.array([3, 7, 13, 18, 25]),
+    #     rps_name='quiet_retry_3_7_13_18_25',
+    #     stic_plot_pathname='Plots_retry_all_3_7_13_18_25_c2',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_2_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_5_16_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_5_16_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_profs.nc',
+    #     indices=np.array([0, 1]),
+    #     rps=np.array([5, 16]),
+    #     rps_name='emission_retry_5_16',
+    #     stic_plot_pathname='Plots_retry_all_5_16',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_2_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_22_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_4_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_22_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_4_vt_4_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([22]),
+    #     rps_name='emission_retry_22',
+    #     stic_plot_pathname='Plots_retry_all_22',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_2_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_21_y_1.nc_level_5_alt_alt_cycle_2_retry_all_t_5_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_21_y_1.nc_level_5_alt_alt_cycle_2_retry_all_t_5_vl_7_vt_4_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([21]),
+    #     rps_name='quiet_retry_21',
+    #     stic_plot_pathname='Plots_retry_all_21',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_2_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_8_19_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_8_19_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_profs.nc',
+    #     indices=np.array([1]),
+    #     rps=np.array([19]),
+    #     rps_name='quiet_retry_19',
+    #     stic_plot_pathname='Plots_retry_all_8_19',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_2_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_20_y_1.nc_level_5_alt_alt_cycle_2_retry_all_t_5_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_20_y_1.nc_level_5_alt_alt_cycle_2_retry_all_t_5_vl_7_vt_4_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([20]),
+    #     rps_name='quiet_retry_20',
+    #     stic_plot_pathname='Plots_retry_all_20',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_2_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_29_y_1.nc_level_5_alt_alt_cycle_2_retry_all_t_5_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_29_y_1.nc_level_5_alt_alt_cycle_2_retry_all_t_5_vl_7_vt_4_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([29]),
+    #     rps_name='quiet_retry_29',
+    #     stic_plot_pathname='Plots_retry_all_29',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_2_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_8_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_8_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([8]),
+    #     rps_name='quiet_retry_8',
+    #     stic_plot_pathname='Plots_retry_all_8',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_2_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_11_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_5_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_11_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_5_vl_7_vt_4_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([11]),
+    #     rps_name='quiet_retry_11',
+    #     stic_plot_pathname='Plots_retry_all_11',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_2_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_30_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_4_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_30_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_4_vt_4_falc_profs.nc',
+    #     indices=np.array([0, 4, 6, 9, 10, 15, 17, 24, 26, 28]),
+    #     rps=np.array([0, 4, 6, 9, 10, 15, 17, 24, 26, 28]),
+    #     rps_name='quiet_nominal',
+    #     stic_plot_pathname='Plots',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_2_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_2_8_19_23_y_1.nc_level_5_alt_alt_cycle_5_t_7_vl_7_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_2_8_19_23_y_1.nc_level_5_alt_alt_cycle_5_t_7_vl_7_vt_4_falc_profs.nc',
+    #     indices=np.array([0, 3]),
+    #     rps=np.array([2, 23]),
+    #     rps_name='quiet_2_23',
+    #     stic_plot_pathname='Plots_2_8_19_23_c1',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_2_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_1_12_27_y_1.nc_level_5_alt_alt_cycle_1_t_10_vl_7_vt_5_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_1_12_27_y_1.nc_level_5_alt_alt_cycle_1_t_10_vl_7_vt_5_falc_profs.nc',
+    #     indices=np.array([0, 1, 2]),
+    #     rps=np.array([1, 12, 27]),
+    #     rps_name='quiet_1_12_27',
+    #     stic_plot_pathname='Plots_quiet_1_12_27',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_2_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_1_12_14_21_27_y_1.nc_level_5_alt_alt_cycle_2_t_9_vl_6_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_1_12_14_21_27_y_1.nc_level_5_alt_alt_cycle_2_t_9_vl_6_vt_4_falc_profs.nc',
+    #     indices=np.array([2]),
+    #     rps=np.array([14]),
+    #     rps_name='quiet_14',
+    #     stic_plot_pathname='Plots_quiet_v2',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_2_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+
+    # base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/pca_kmeans_fulldata_inversions/')
+    #
+    # pixel_files = [
+    #     base_path / 'pixel_indices_retry_3_quiet_nominal_total_119.h5',
+    #     base_path / 'pixel_indices_retry_3_quiet_1_12_27_total_54.h5',
+    #     base_path / 'pixel_indices_retry_3_quiet_21_total_8.h5',
+    #     base_path / 'pixel_indices_retry_3_quiet_2_8_19_23_total_15.h5',
+    #     base_path / 'pixel_indices_retry_3_quiet_29_total_1.h5',
+    #     base_path / 'pixel_indices_retry_3_quiet_20_total_3.h5',
+    #     base_path / 'pixel_indices_retry_3_quiet_5_16_total_1.h5',
+    #     base_path / 'pixel_indices_retry_3_quiet_11_total_6.h5'
+    # ]
+    #
+    # atmos_files = [
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_3_quiet_nominal_total_119.nc_level_5_alt_alt_cycle_B_retry_3_t_7_vl_4_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_3_quiet_1_12_27_total_54.nc_level_5_alt_alt_cycle_B_retry_3_t_10_vl_7_vt_5_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_3_quiet_21_total_8.nc_level_5_alt_alt_cycle_B_retry_3_t_10_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_3_quiet_2_8_19_23_total_15.nc_level_5_alt_alt_cycle_B_retry_3_t_7_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_3_quiet_29_total_1.nc_level_5_alt_alt_cycle_B_retry_3_t_7_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_3_quiet_20_total_3.nc_level_5_alt_alt_cycle_B_retry_3_t_7_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_3_quiet_5_16_total_1.nc_level_5_alt_alt_cycle_B_retry_3_t_7_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_3_quiet_11_total_6.nc_level_5_alt_alt_cycle_B_retry_3_t_7_vl_7_vt_4_blong_2_atmos.nc'
+    # ]
+    #
+    # base_atmos = base_path / 'combined_output_cycle_B_retry_2.nc'
+    #
+    # update_atmospheres(pixel_files, atmos_files, base_atmos)
+    #
+    # base_atmos = base_path / 'combined_output_profs_cycle_B_retry_2.nc'
+    #
+    # atmos_files = [
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_3_quiet_nominal_total_119.nc_level_5_alt_alt_cycle_B_retry_3_t_7_vl_4_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_3_quiet_1_12_27_total_54.nc_level_5_alt_alt_cycle_B_retry_3_t_10_vl_7_vt_5_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_3_quiet_21_total_8.nc_level_5_alt_alt_cycle_B_retry_3_t_10_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_3_quiet_2_8_19_23_total_15.nc_level_5_alt_alt_cycle_B_retry_3_t_7_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_3_quiet_29_total_1.nc_level_5_alt_alt_cycle_B_retry_3_t_7_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_3_quiet_20_total_3.nc_level_5_alt_alt_cycle_B_retry_3_t_7_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_3_quiet_5_16_total_1.nc_level_5_alt_alt_cycle_B_retry_3_t_7_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_3_quiet_11_total_6.nc_level_5_alt_alt_cycle_B_retry_3_t_7_vl_7_vt_4_blong_2_profs.nc'
+    # ]
+    #
+    # update_output_profiles(pixel_files, atmos_files, base_atmos)
+
+    points = [
+        [5, 37],
+        [8, 25],
+        [23, 29],
+        [40, 30],
+        [31, 24],
+        [40, 4]
+    ]
+    make_atmos_for_response_functions(points=points)
+
+    # base_path = Path(
+    #     '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/pca_kmeans_fulldata_inversions/')
+    #
+    # pixel_files = [
+    #     base_path / 'pixel_indices_quiet_retry_3_7_13_18_25_total_541.h5',
+    #     base_path / 'pixel_indices_emission_retry_5_16_total_68.h5',
+    #     base_path / 'pixel_indices_emission_retry_22_total_49.h5',
+    #     base_path / 'pixel_indices_quiet_retry_21_total_80.h5',
+    #     base_path / 'pixel_indices_quiet_retry_19_total_63.h5',
+    #     base_path / 'pixel_indices_quiet_retry_20_total_61.h5',
+    #     base_path / 'pixel_indices_quiet_retry_29_total_62.h5',
+    #     base_path / 'pixel_indices_quiet_retry_8_total_68.h5',
+    #     base_path / 'pixel_indices_quiet_retry_11_total_40.h5'
+    # ]
+    #
+    # atmos_files = [
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_3_7_13_18_25_total_541.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_3_vt_4_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_emission_retry_5_16_total_68.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_emission_retry_22_total_49.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_4_vt_4_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_21_total_80.nc_level_5_alt_alt_cycle_1_retry_all_t_9_vl_7_vt_4_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_19_total_63.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_20_total_61.nc_level_5_alt_alt_cycle_1_retry_all_t_5_vl_7_vt_4_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_29_total_62.nc_level_5_alt_alt_cycle_1_retry_all_t_5_vl_7_vt_4_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_8_total_68.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_11_total_40.nc_level_5_alt_alt_cycle_1_retry_all_t_5_vl_7_vt_4_atmos.nc'
+    # ]
+    #
+    # base_atmos = base_path / 'combined_output_cycle_B_retry_3.nc'
+    #
+    # update_atmospheres(pixel_files, atmos_files, base_atmos)
+    #
+    # base_atmos = base_path / 'combined_output_profs_cycle_B_retry_3.nc'
+    #
+    # atmos_files = [
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_3_7_13_18_25_total_541.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_3_vt_4_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_emission_retry_5_16_total_68.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_emission_retry_22_total_49.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_4_vt_4_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_21_total_80.nc_level_5_alt_alt_cycle_1_retry_all_t_9_vl_7_vt_4_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_19_total_63.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_20_total_61.nc_level_5_alt_alt_cycle_1_retry_all_t_5_vl_7_vt_4_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_29_total_62.nc_level_5_alt_alt_cycle_1_retry_all_t_5_vl_7_vt_4_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_8_total_68.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_11_total_40.nc_level_5_alt_alt_cycle_1_retry_all_t_5_vl_7_vt_4_profs.nc'
+    # ]
+    #
+    # update_output_profiles(pixel_files, atmos_files, base_atmos)
+
+    # base_path = Path(
+    #     '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/pca_kmeans_fulldata_inversions/'
+    # )
+    #
+    # pixel_files = [
+    #     base_path / 'pixel_indices_quiet_retry_3_7_13_18_25_total_541.h5',
+    #     base_path / 'pixel_indices_emission_retry_5_16_total_68.h5',
+    #     base_path / 'pixel_indices_emission_retry_22_total_49.h5',
+    #     base_path / 'pixel_indices_quiet_retry_21_total_80.h5',
+    #     base_path / 'pixel_indices_quiet_retry_19_total_63.h5',
+    #     base_path / 'pixel_indices_quiet_retry_20_total_61.h5',
+    #     base_path / 'pixel_indices_quiet_retry_29_total_62.h5',
+    #     base_path / 'pixel_indices_quiet_retry_8_total_68.h5',
+    #     base_path / 'pixel_indices_quiet_retry_11_total_40.h5',
+    #     base_path / 'pixel_indices_quiet_nominal_total_1105.h5',
+    #     base_path / 'pixel_indices_quiet_2_23_total_149.h5',
+    #     base_path / 'pixel_indices_quiet_1_12_27_total_144.h5',
+    #     base_path / 'pixel_indices_quiet_14_total_70.h5'
+    # ]
+    #
+    # atmos_files = [
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_3_7_13_18_25_total_541.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_3_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_emission_retry_5_16_total_68.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_emission_retry_22_total_49.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_4_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_21_total_80.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_5_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_19_total_63.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_20_total_61.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_5_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_29_total_62.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_5_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_8_total_68.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_11_total_40.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_5_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_nominal_total_1105.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_7_vl_4_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_2_23_total_149.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_7_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_1_12_27_total_144.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_10_vl_7_vt_5_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_14_total_70.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_9_vl_6_vt_4_blong_2_atmos.nc'
+    # ]
+    #
+    # merge_atmospheres(base_path, pixel_files, atmos_files)
+    #
+    # atmos_files = [
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_3_7_13_18_25_total_541.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_3_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_emission_retry_5_16_total_68.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_emission_retry_22_total_49.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_4_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_21_total_80.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_5_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_19_total_63.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_20_total_61.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_5_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_29_total_62.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_5_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_8_total_68.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_retry_11_total_40.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_5_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_nominal_total_1105.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_7_vl_4_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_2_23_total_149.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_7_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_1_12_27_total_144.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_10_vl_7_vt_5_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_quiet_14_total_70.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_9_vl_6_vt_4_blong_2_profs.nc'
+    # ]
+    #
+    # merge_output_profiles(base_path, pixel_files, atmos_files)
+
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_T_1_retry_all.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_T_1_retry_all.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_3_7_13_18_25_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_3_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_3_7_13_18_25_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_3_vt_4_profs.nc',
+    #     indices=np.array([0, 1, 2, 3, 4]),
+    #     rps=np.array([3, 7, 13, 18, 25]),
+    #     rps_name='quiet_retry_3_7_13_18_25',
+    #     stic_plot_pathname='Plots_retry_all_3_7_13_18_25_c2',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_T_1_retry_all.nc',
+    #     smooth_thermo=3,
+    #     include_b=True,
+    #     smooth_b=3
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_T_1_retry_all.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_T_1_retry_all.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_5_16_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_5_16_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_profs.nc',
+    #     indices=np.array([0, 1]),
+    #     rps=np.array([5, 16]),
+    #     rps_name='emission_retry_5_16',
+    #     stic_plot_pathname='Plots_retry_all_5_16',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_T_1_retry_all.nc',
+    #     smooth_thermo=3,
+    #     include_b=True,
+    #     smooth_b=3
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_T_1_retry_all.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_T_1_retry_all.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_22_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_4_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_22_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_4_vt_4_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([22]),
+    #     rps_name='emission_retry_22',
+    #     stic_plot_pathname='Plots_retry_all_22',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_T_1_retry_all.nc',
+    #     smooth_thermo=3,
+    #     include_b=True,
+    #     smooth_b=3
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_T_1_retry_all.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_T_1_retry_all.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_21_y_1.nc_level_5_alt_alt_cycle_2_retry_all_t_5_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_21_y_1.nc_level_5_alt_alt_cycle_2_retry_all_t_5_vl_7_vt_4_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([21]),
+    #     rps_name='quiet_retry_21',
+    #     stic_plot_pathname='Plots_retry_all_21',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_T_1_retry_all.nc',
+    #     smooth_thermo=3,
+    #     include_b=True,
+    #     smooth_b=3
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_T_1_retry_all.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_T_1_retry_all.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_8_19_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_8_19_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_profs.nc',
+    #     indices=np.array([1]),
+    #     rps=np.array([19]),
+    #     rps_name='quiet_retry_19',
+    #     stic_plot_pathname='Plots_retry_all_8_19',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_T_1_retry_all.nc',
+    #     smooth_thermo=3,
+    #     include_b=True,
+    #     smooth_b=3
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_T_1_retry_all.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_T_1_retry_all.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_20_y_1.nc_level_5_alt_alt_cycle_2_retry_all_t_5_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_20_y_1.nc_level_5_alt_alt_cycle_2_retry_all_t_5_vl_7_vt_4_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([20]),
+    #     rps_name='quiet_retry_20',
+    #     stic_plot_pathname='Plots_retry_all_20',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_T_1_retry_all.nc',
+    #     smooth_thermo=3,
+    #     include_b=True,
+    #     smooth_b=3
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_T_1_retry_all.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_T_1_retry_all.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_29_y_1.nc_level_5_alt_alt_cycle_2_retry_all_t_5_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_29_y_1.nc_level_5_alt_alt_cycle_2_retry_all_t_5_vl_7_vt_4_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([29]),
+    #     rps_name='quiet_retry_29',
+    #     stic_plot_pathname='Plots_retry_all_29',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_T_1_retry_all.nc',
+    #     smooth_thermo=3,
+    #     include_b=True,
+    #     smooth_b=3
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_T_1_retry_all.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_T_1_retry_all.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_8_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_8_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([8]),
+    #     rps_name='quiet_retry_8',
+    #     stic_plot_pathname='Plots_retry_all_8',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_T_1_retry_all.nc',
+    #     smooth_thermo=3,
+    #     include_b=True,
+    #     smooth_b=3
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_T_1_retry_all.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_T_1_retry_all.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_11_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_5_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_11_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_5_vl_7_vt_4_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([11]),
+    #     rps_name='quiet_retry_11',
+    #     stic_plot_pathname='Plots_retry_all_11',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_T_1_retry_all.nc',
+    #     smooth_thermo=3,
+    #     include_b=True,
+    #     smooth_b=3
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_T_1_retry_all.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_T_1_retry_all.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_30_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_4_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_30_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_4_vt_4_falc_profs.nc',
+    #     indices=np.array([0, 4, 6, 9, 10, 15, 17, 24, 26, 28]),
+    #     rps=np.array([0, 4, 6, 9, 10, 15, 17, 24, 26, 28]),
+    #     rps_name='quiet_nominal',
+    #     stic_plot_pathname='Plots',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_T_1_retry_all.nc',
+    #     smooth_thermo=3,
+    #     include_b=True,
+    #     smooth_b=3
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_T_1_retry_all.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_T_1_retry_all.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_2_8_19_23_y_1.nc_level_5_alt_alt_cycle_5_t_7_vl_7_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_2_8_19_23_y_1.nc_level_5_alt_alt_cycle_5_t_7_vl_7_vt_4_falc_profs.nc',
+    #     indices=np.array([0, 3]),
+    #     rps=np.array([2, 23]),
+    #     rps_name='quiet_2_23',
+    #     stic_plot_pathname='Plots_2_8_19_23_c1',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_T_1_retry_all.nc',
+    #     smooth_thermo=3,
+    #     include_b=True,
+    #     smooth_b=3
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_T_1_retry_all.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_T_1_retry_all.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_1_12_27_y_1.nc_level_5_alt_alt_cycle_1_t_10_vl_7_vt_5_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_1_12_27_y_1.nc_level_5_alt_alt_cycle_1_t_10_vl_7_vt_5_falc_profs.nc',
+    #     indices=np.array([0, 1, 2]),
+    #     rps=np.array([1, 12, 27]),
+    #     rps_name='quiet_1_12_27',
+    #     stic_plot_pathname='Plots_quiet_1_12_27',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_T_1_retry_all.nc',
+    #     smooth_thermo=3,
+    #     include_b=True,
+    #     smooth_b=3
+    # )
+    #
+    # generate_actual_inversion_files_kmeans_retry(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     failed_filename_prof='combined_output_profs_cycle_B_T_1_retry_all.nc',
+    #     failed_filename_atmos='combined_output_cycle_B_T_1_retry_all.nc',
+    #     hmimag_filename='hmi.M_720s.20230527_023600_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     rp_filename='ca_rps_stic_profiles_x_1_12_14_21_27_y_1.nc_level_5_alt_alt_cycle_2_t_9_vl_6_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_1_12_14_21_27_y_1.nc_level_5_alt_alt_cycle_2_t_9_vl_6_vt_4_falc_profs.nc',
+    #     indices=np.array([2]),
+    #     rps=np.array([14]),
+    #     rps_name='quiet_14',
+    #     stic_plot_pathname='Plots_quiet_v2',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_T_1_retry_all.nc',
+    #     smooth_thermo=3,
+    #     include_b=True,
+    #     smooth_b=3
+    # )
+
+    # base_path = Path(
+    #     '/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/pca_kmeans_fulldata_inversions/'
+    # )
+    #
+    # pixel_files = [
+    #     base_path / 'pixel_indices_retry_all_cycle_B_T_1_quiet_retry_3_7_13_18_25_total_138.h5',
+    #     base_path / 'pixel_indices_retry_all_cycle_B_T_1_emission_retry_5_16_total_26.h5',
+    #     base_path / 'pixel_indices_retry_all_cycle_B_T_1_emission_retry_22_total_17.h5',
+    #     base_path / 'pixel_indices_retry_all_cycle_B_T_1_quiet_retry_21_total_36.h5',
+    #     base_path / 'pixel_indices_retry_all_cycle_B_T_1_quiet_retry_19_total_24.h5',
+    #     base_path / 'pixel_indices_retry_all_cycle_B_T_1_quiet_retry_20_total_28.h5',
+    #     base_path / 'pixel_indices_retry_all_cycle_B_T_1_quiet_retry_29_total_15.h5',
+    #     base_path / 'pixel_indices_retry_all_cycle_B_T_1_quiet_retry_8_total_21.h5',
+    #     base_path / 'pixel_indices_retry_all_cycle_B_T_1_quiet_retry_11_total_12.h5',
+    #     base_path / 'pixel_indices_retry_all_cycle_B_T_1_quiet_nominal_total_246.h5',
+    #     base_path / 'pixel_indices_retry_all_cycle_B_T_1_quiet_2_23_total_59.h5',
+    #     base_path / 'pixel_indices_retry_all_cycle_B_T_1_quiet_1_12_27_total_70.h5',
+    #     base_path / 'pixel_indices_retry_all_cycle_B_T_1_quiet_14_total_20.h5'
+    # ]
+    #
+    # atmos_files = [
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_retry_3_7_13_18_25_total_138.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_3_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_emission_retry_5_16_total_26.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_emission_retry_22_total_17.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_4_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_retry_21_total_36.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_5_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_retry_19_total_24.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_retry_20_total_28.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_5_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_retry_29_total_15.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_5_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_retry_8_total_21.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_retry_11_total_12.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_5_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_nominal_total_246.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_7_vl_4_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_2_23_total_59.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_7_vl_7_vt_4_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_1_12_27_total_70.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_10_vl_7_vt_5_blong_2_atmos.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_14_total_20.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_9_vl_6_vt_4_blong_2_atmos.nc'
+    # ]
+    #
+    # base_atmos = base_path / 'combined_output_cycle_B_T_1_retry_all.nc'
+    #
+    # update_atmospheres(pixel_files, atmos_files, base_atmos)
+    #
+    # atmos_files = [
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_retry_3_7_13_18_25_total_138.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_3_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_emission_retry_5_16_total_26.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_emission_retry_22_total_17.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_4_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_retry_21_total_36.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_5_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_retry_19_total_24.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_retry_20_total_28.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_5_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_retry_29_total_15.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_5_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_retry_8_total_21.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_6_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_retry_11_total_12.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_5_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_nominal_total_246.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_7_vl_4_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_2_23_total_59.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_7_vl_7_vt_4_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_1_12_27_total_70.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_10_vl_7_vt_5_blong_2_profs.nc',
+    #     base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc_retry_all_cycle_B_T_1_quiet_14_total_20.nc_level_5_alt_alt_cycle_B_T_1_retry_all_t_9_vl_6_vt_4_blong_2_profs.nc'
+    # ]
+    #
+    # base_atmos = base_path / 'combined_output_profs_cycle_B_T_1_retry_all.nc'
+    #
+    # update_output_profiles(pixel_files, atmos_files, base_atmos)
+
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_3_7_13_18_25_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_3_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_3_7_13_18_25_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_3_vt_4_profs.nc',
+    #     indices=np.array([0, 1, 2, 3, 4]),
+    #     rps=np.array([3, 7, 13, 18, 25]),
+    #     rps_name='quiet_retry_3_7_13_18_25',
+    #     stic_plot_pathname='Plots_retry_all_3_7_13_18_25_c2',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_4_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_5_16_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_5_16_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_profs.nc',
+    #     indices=np.array([0, 1]),
+    #     rps=np.array([5, 16]),
+    #     rps_name='emission_retry_5_16',
+    #     stic_plot_pathname='Plots_retry_all_5_16',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_4_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_22_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_4_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_22_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_4_vt_4_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([22]),
+    #     rps_name='emission_retry_22',
+    #     stic_plot_pathname='Plots_retry_all_22',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_4_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_21_y_1.nc_level_5_alt_alt_cycle_2_retry_all_t_5_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_21_y_1.nc_level_5_alt_alt_cycle_2_retry_all_t_5_vl_7_vt_4_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([21]),
+    #     rps_name='quiet_retry_21',
+    #     stic_plot_pathname='Plots_retry_all_21',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_4_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_8_19_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_8_19_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_profs.nc',
+    #     indices=np.array([1]),
+    #     rps=np.array([19]),
+    #     rps_name='quiet_retry_19',
+    #     stic_plot_pathname='Plots_retry_all_8_19',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_4_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_20_y_1.nc_level_5_alt_alt_cycle_2_retry_all_t_5_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_20_y_1.nc_level_5_alt_alt_cycle_2_retry_all_t_5_vl_7_vt_4_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([20]),
+    #     rps_name='quiet_retry_20',
+    #     stic_plot_pathname='Plots_retry_all_20',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_4_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_29_y_1.nc_level_5_alt_alt_cycle_2_retry_all_t_5_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_29_y_1.nc_level_5_alt_alt_cycle_2_retry_all_t_5_vl_7_vt_4_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([29]),
+    #     rps_name='quiet_retry_29',
+    #     stic_plot_pathname='Plots_retry_all_29',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_4_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_8_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_8_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_6_vl_7_vt_4_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([8]),
+    #     rps_name='quiet_retry_8',
+    #     stic_plot_pathname='Plots_retry_all_8',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_4_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_11_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_5_vl_7_vt_4_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_11_y_1.nc_level_5_alt_alt_cycle_1_retry_all_t_5_vl_7_vt_4_profs.nc',
+    #     indices=np.array([0]),
+    #     rps=np.array([11]),
+    #     rps_name='quiet_retry_11',
+    #     stic_plot_pathname='Plots_retry_all_11',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_4_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_30_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_4_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_30_y_1.nc_level_5_alt_alt_cycle_1_t_7_vl_4_vt_4_falc_profs.nc',
+    #     indices=np.array([0, 4, 6, 9, 10, 15, 17, 24, 26, 28]),
+    #     rps=np.array([0, 4, 6, 9, 10, 15, 17, 24, 26, 28]),
+    #     rps_name='quiet_nominal',
+    #     stic_plot_pathname='Plots',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_4_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_2_8_19_23_y_1.nc_level_5_alt_alt_cycle_5_t_7_vl_7_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_2_8_19_23_y_1.nc_level_5_alt_alt_cycle_5_t_7_vl_7_vt_4_falc_profs.nc',
+    #     indices=np.array([0, 3]),
+    #     rps=np.array([2, 23]),
+    #     rps_name='quiet_2_23',
+    #     stic_plot_pathname='Plots_2_8_19_23_c1',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_4_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_1_12_27_y_1.nc_level_5_alt_alt_cycle_1_t_10_vl_7_vt_5_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_1_12_27_y_1.nc_level_5_alt_alt_cycle_1_t_10_vl_7_vt_5_falc_profs.nc',
+    #     indices=np.array([0, 1, 2]),
+    #     rps=np.array([1, 12, 27]),
+    #     rps_name='quiet_1_12_27',
+    #     stic_plot_pathname='Plots_quiet_1_12_27',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_4_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
+    #
+    # generate_actual_inversion_files_kmeans(
+    #     actual_filename='aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_stic_file.nc',
+    #     rp_filename='ca_rps_stic_profiles_x_1_12_14_21_27_y_1.nc_level_5_alt_alt_cycle_2_t_9_vl_6_vt_4_falc_atmos.nc',
+    #     rp_prof_filename='ca_rps_stic_profiles_x_1_12_14_21_27_y_1.nc_level_5_alt_alt_cycle_2_t_9_vl_6_vt_4_falc_profs.nc',
+    #     indices=np.array([2]),
+    #     rps=np.array([14]),
+    #     rps_name='quiet_14',
+    #     stic_plot_pathname='Plots_quiet_v2',
+    #     total=30,
+    #     previous_output_filename='combined_output_cycle_B_4_retry_all.nc',
+    #     smooth_thermo=None,
+    #     include_b=True,
+    #     smooth_b=None
+    # )
