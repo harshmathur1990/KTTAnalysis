@@ -14,6 +14,7 @@ from matplotlib.ticker import FormatStrFormatter
 import seaborn as sns
 import pandas as pd
 from matplotlib.patches import Patch
+from scipy.stats import pearsonr
 
 
 def add_subplot_axes(ax,rect,axisbg='w'):
@@ -2292,9 +2293,11 @@ def create_magnetic_field_scatter_plots():
 
     g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='coral', linestyle='--', linewidth=1)
 
+    r, p = pearsonr(data[r'$|B|$ (HMI)'][index], data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index])
+
     g.ax_joint.text(
-        0.05, 0.9,
-        r'$m={}$'.format(np.round(a, 2)),
+        0.05, 0.97,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 1), np.round(p, 2)),
         color='coral',
         transform=g.ax_joint.transAxes
     )
@@ -2306,9 +2309,11 @@ def create_magnetic_field_scatter_plots():
     g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='darkslategray', linestyle='--',
                     linewidth=1)
 
+    r, p = pearsonr(data[r'$|B|$ (HMI)'][index], data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index])
+
     g.ax_joint.text(
-        0.05, 0.8,
-        r'$m={}$'.format(np.round(a, 2)),
+        0.05, 0.87,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
         color='darkslategray',
         transform=g.ax_joint.transAxes
     )
@@ -2320,9 +2325,11 @@ def create_magnetic_field_scatter_plots():
     g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='dodgerblue', linestyle='--',
                     linewidth=1)
 
+    r, p = pearsonr(data[r'$|B|$ (HMI)'][index], data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index])
+
     g.ax_joint.text(
-        0.05, 0.7,
-        r'$m={}$'.format(np.round(a, 2)),
+        0.05, 0.77,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
         color='dodgerblue',
         transform=g.ax_joint.transAxes
     )
@@ -2358,6 +2365,10 @@ def create_magnetic_field_scatter_plots():
     g._figure.set_size_inches(1.75 * 2, 1.75 * 2, forward=True)
 
     # g._figure.subplots_adjust(left=0.21, bottom=0.23, top=0.99, right=0.99)
+
+    r, p = pearsonr(data[r'$|B|$ (HMI)'], data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'])
+
+    print('All {}, {}'.format(r, p))
 
     axins = inset_axes(
         g.ax_joint,
@@ -2396,9 +2407,11 @@ def create_magnetic_field_scatter_plots():
     axins.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='rosybrown', linestyle='--',
                     linewidth=1)
 
+    r, p = pearsonr(data2[r'$|B|$ (HMI)'], data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'])
+
     g.ax_joint.text(
-        0.05, 0.6,
-        r'$m={}$'.format(np.round(a, 2)),
+        0.05, 0.67,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
         color='rosybrown',
         transform=g.ax_joint.transAxes
     )
@@ -2446,9 +2459,11 @@ def create_magnetic_field_scatter_plots():
 
     g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='coral', linestyle='--', linewidth=1)
 
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index])
+
     g.ax_joint.text(
-        0.05, 0.9,
-        r'$m={}$'.format(np.round(a, 2)),
+        0.05, 0.97,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
         color='coral',
         transform=g.ax_joint.transAxes
     )
@@ -2460,9 +2475,11 @@ def create_magnetic_field_scatter_plots():
     g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='darkslategray', linestyle='--',
                     linewidth=1)
 
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index])
+
     g.ax_joint.text(
-        0.05, 0.8,
-        r'$m={}$'.format(np.round(a, 2)),
+        0.05, 0.87,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
         color='darkslategray',
         transform=g.ax_joint.transAxes
     )
@@ -2474,9 +2491,11 @@ def create_magnetic_field_scatter_plots():
     g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='dodgerblue', linestyle='--',
                     linewidth=1)
 
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index])
+
     g.ax_joint.text(
-        0.05, 0.7,
-        r'$m={}$'.format(np.round(a, 2)),
+        0.05, 0.77,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
         color='dodgerblue',
         transform=g.ax_joint.transAxes
     )
@@ -2554,9 +2573,11 @@ def create_magnetic_field_scatter_plots():
     axins.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='rosybrown', linestyle='--',
                linewidth=1)
 
+    r, p = pearsonr(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'], data2[r'$|$WFA$|$ (H$\alpha$ core)'])
+
     g.ax_joint.text(
-        0.05, 0.6,
-        r'$m={}$'.format(np.round(a, 2)),
+        0.05, 0.67,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
         color='rosybrown',
         transform=g.ax_joint.transAxes
     )
@@ -2604,9 +2625,11 @@ def create_magnetic_field_scatter_plots():
 
     g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='coral', linestyle='--', linewidth=1)
 
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)'][index])
+
     g.ax_joint.text(
-        0.05, 0.9,
-        r'$m={}$'.format(np.round(a, 2)),
+        0.05, 0.97,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
         color='coral',
         transform=g.ax_joint.transAxes
     )
@@ -2618,9 +2641,11 @@ def create_magnetic_field_scatter_plots():
     g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='darkslategray', linestyle='--',
                     linewidth=1)
 
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)'][index])
+
     g.ax_joint.text(
-        0.05, 0.8,
-        r'$m={}$'.format(np.round(a, 2)),
+        0.05, 0.87,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
         color='darkslategray',
         transform=g.ax_joint.transAxes
     )
@@ -2632,9 +2657,11 @@ def create_magnetic_field_scatter_plots():
     g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='dodgerblue', linestyle='--',
                     linewidth=1)
 
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)'][index])
+
     g.ax_joint.text(
-        0.05, 0.7,
-        r'$m={}$'.format(np.round(a, 2)),
+        0.05, 0.77,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
         color='dodgerblue',
         transform=g.ax_joint.transAxes
     )
@@ -2703,15 +2730,16 @@ def create_magnetic_field_scatter_plots():
 
     axins.set_yticks([0, 5, 10, 15, 20], ['', '', '', '', ''])
 
-    a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'], data2[r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)'],
-                      1)
+    a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'], data2[r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)'],1)
 
     axins.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='rosybrown', linestyle='--',
                linewidth=1)
 
+    r, p = pearsonr(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'], data2[r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)'])
+
     g.ax_joint.text(
-        0.05, 0.6,
-        r'$m={}$'.format(np.round(a, 2)),
+        0.05, 0.67,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
         color='rosybrown',
         transform=g.ax_joint.transAxes
     )
@@ -2772,9 +2800,11 @@ def create_magnetic_field_scatter_plots():
 
     g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='coral', linestyle='--', linewidth=1)
 
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index])
+
     g.ax_joint.text(
-        0.05, 0.9,
-        r'$m={}$'.format(np.round(a, 2)),
+        0.05, 0.97,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
         color='coral',
         transform=g.ax_joint.transAxes
     )
@@ -2788,9 +2818,11 @@ def create_magnetic_field_scatter_plots():
     g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='darkslategray', linestyle='--',
                     linewidth=1)
 
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index])
+
     g.ax_joint.text(
-        0.05, 0.8,
-        r'$m={}$'.format(np.round(a, 2)),
+        0.05, 0.87,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
         color='darkslategray',
         transform=g.ax_joint.transAxes
     )
@@ -2804,9 +2836,11 @@ def create_magnetic_field_scatter_plots():
     g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='dodgerblue', linestyle='--',
                     linewidth=1)
 
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index])
+
     g.ax_joint.text(
-        0.05, 0.7,
-        r'$m={}$'.format(np.round(a, 2)),
+        0.05, 0.77,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
         color='dodgerblue',
         transform=g.ax_joint.transAxes
     )
@@ -2875,7 +2909,7 @@ def create_magnetic_field_scatter_plots():
 
     axins.set_yticks([0, 5, 10, 15, 20], ['', '', '', '', ''])
 
-    b, a = np.polynomial.polynomial.polyfit(x=data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'], y=data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'], deg=1)
+    a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'], data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'], 1)
     # a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'],
     #                   data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'],
     #                   1)
@@ -2883,9 +2917,11 @@ def create_magnetic_field_scatter_plots():
     axins.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='rosybrown', linestyle='--',
                linewidth=1)
 
+    r, p = pearsonr(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'], data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'])
+
     g.ax_joint.text(
-        0.05, 0.6,
-        r'$m={}$'.format(np.round(a, 2)),
+        0.05, 0.67,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
         color='rosybrown',
         transform=g.ax_joint.transAxes
     )
@@ -4139,7 +4175,7 @@ if __name__ == '__main__':
     # line_colors = ['red', 'blue']
     # create_magnetic_field_plots(points, pcolors, l1x, l1y, l2x, l2y, line_colors)
 
-    # create_magnetic_field_scatter_plots()
+    create_magnetic_field_scatter_plots()
     # make_legend()
 
     # points = [
@@ -4160,30 +4196,30 @@ if __name__ == '__main__':
     #
     # make_vertical_cut(y=y)
 
-    line_points = np.array(
-        [
-            [22, 34],
-            [38, 14],
-            [38, 35],
-            [26, 10]
-        ]
-    )
-
-    x1 = np.arange(line_points[0][0], line_points[1][0], 1)
-    l1s, l1c = np.polyfit([line_points[0][0], line_points[1][0]], [line_points[0][1], line_points[1][1]], 1)
-    y1 = np.round(x1 * l1s + l1c, 0).astype(np.int64)
-    x1d = x1 - 1
-    y1d = y1 - 1
-    l1x = np.concatenate([x1[np.newaxis, :], x1d[np.newaxis, :]])
-    l1y = np.concatenate([y1[np.newaxis, :], y1d[np.newaxis, :]])
-    x2 = np.arange(line_points[2][0], line_points[3][0], -1)
-    l2s, l2c = np.polyfit([line_points[2][0], line_points[3][0]], [line_points[2][1], line_points[3][1]], 1)
-    print(l2s)
-    y2 = np.round(x2 * l2s + l2c, 0).astype(np.int64)
-    x2d = x2 - 1
-    y2d = y2 + 1
-    l2x = np.concatenate([x2[np.newaxis, 3:], x2d[np.newaxis, 3:]])
-    l2y = np.concatenate([y2[np.newaxis, 3:], y2d[np.newaxis, 3:]])
-    line_colors = ['red', 'blue']
-
-    make_line_cuts(l1x, l1y, l2x, l2y, line_colors)
+    # line_points = np.array(
+    #     [
+    #         [22, 34],
+    #         [38, 14],
+    #         [38, 35],
+    #         [26, 10]
+    #     ]
+    # )
+    #
+    # x1 = np.arange(line_points[0][0], line_points[1][0], 1)
+    # l1s, l1c = np.polyfit([line_points[0][0], line_points[1][0]], [line_points[0][1], line_points[1][1]], 1)
+    # y1 = np.round(x1 * l1s + l1c, 0).astype(np.int64)
+    # x1d = x1 - 1
+    # y1d = y1 - 1
+    # l1x = np.concatenate([x1[np.newaxis, :], x1d[np.newaxis, :]])
+    # l1y = np.concatenate([y1[np.newaxis, :], y1d[np.newaxis, :]])
+    # x2 = np.arange(line_points[2][0], line_points[3][0], -1)
+    # l2s, l2c = np.polyfit([line_points[2][0], line_points[3][0]], [line_points[2][1], line_points[3][1]], 1)
+    # print(l2s)
+    # y2 = np.round(x2 * l2s + l2c, 0).astype(np.int64)
+    # x2d = x2 - 1
+    # y2d = y2 + 1
+    # l2x = np.concatenate([x2[np.newaxis, 3:], x2d[np.newaxis, 3:]])
+    # l2y = np.concatenate([y2[np.newaxis, 3:], y2d[np.newaxis, 3:]])
+    # line_colors = ['red', 'blue']
+    #
+    # make_line_cuts(l1x, l1y, l2x, l2y, line_colors)
