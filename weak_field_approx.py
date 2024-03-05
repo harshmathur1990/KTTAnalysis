@@ -132,6 +132,96 @@ def prepare_calculate_blos(
     return actual_calculate_blos
 
 
+def calculate_v_los_cog(
+    stokes_I,
+    wavelength_arr,
+    lambda0,
+    lambda_range_min,
+    lambda_range_max,
+    transition_skip_list=None
+):
+    '''
+    stokes_I: Array of Intensties
+    wavelength_arr: Units is nm
+    lambda0: Units is nm
+    lambda_range_min: Units is nm
+    lambda_range_max: Units is nm
+    '''
+
+    indices = np.where(
+        (
+            np.array(wavelength_arr) >= (lambda_range_min)
+        ) & (
+            np.array(wavelength_arr) <= (lambda_range_max)
+        )
+    )[0]
+
+    if transition_skip_list is not None:
+        skip_ind = list()
+        for transition in transition_skip_list:
+            skip_ind += list(
+                np.where(
+                    (
+                            np.array(wavelength_arr) >= (transition[0] - transition[1])
+                    ) & (
+                            np.array(wavelength_arr) <= (transition[0] + transition[1])
+                    )
+                )[0]
+            )
+        indices = np.array(list(set(indices) - set(skip_ind)))
+
+    wavelength = np.array(wavelength_arr)[indices]
+
+    intensity = np.array(stokes_I)[indices]
+
+    wave_weighted = np.sum(wavelength * intensity) / np.sum(intensity)
+
+    return (wave_weighted - lambda0) * 2.99792458e5 / lambda0
+
+
+def prepare_calculate_vlos_cog(
+    obs,
+    wavelength_arr,
+    lambda0,
+    lambda_range_min,
+    lambda_range_max,
+    transition_skip_list=None,
+    bin_factor=None
+):
+    print_flag = True
+    def actual_calculate_vlos_cog(i, j):
+        nonlocal print_flag
+
+        if print_flag is False:
+            print(obs.shape)
+            print(wavelength_arr)
+            print(lambda0)
+            print(lambda_range_min)
+            print(lambda_range_max)
+            print(transition_skip_list)
+            print(bin_factor)
+            print_flag = True
+
+        i = int(i)
+        j = int(j)
+        stokes_I = obs[i, j, :, 0]
+        wave = wavelength_arr
+        if bin_factor is not None:
+            stokes_I = np.mean(stokes_I.reshape(stokes_I.shape[0] // bin_factor, bin_factor), 1)
+            wave = np.mean(wave.reshape(wave.shape[0] // bin_factor, bin_factor), 1)
+
+        return calculate_b_los(
+            stokes_I,
+            wave,
+            lambda0,
+            lambda_range_min,
+            lambda_range_max,
+            transition_skip_list=transition_skip_list
+        )
+
+    return actual_calculate_vlos_cog
+
+
 def prepare_calculate_blos_rh15d(
     f,
     wavelength_arr,

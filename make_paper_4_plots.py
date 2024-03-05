@@ -190,6 +190,92 @@ def calculate_magnetic_field(datestring, errors=None, bin_factor=None):
         sys.stdout.write('Ha full line created\n')
 
 
+def calculate_vlos_cog_field(datestring, errors=None, bin_factor=None):
+
+    # base_path = Path('F:\\Harsh\\CourseworkRepo\\InstrumentalUncorrectedStokes')
+
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+
+    # base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
+
+    # base_path = Path('C:\\Work Things\\InstrumentalUncorrectedStokes')
+
+    datepath = base_path / datestring
+
+    level5path = datepath / 'Level-5-alt-alt'
+
+    all_files = level5path.glob('**/*')
+
+    all_mag_files = [level5path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc']
+
+    for a_mag_file in all_mag_files:
+
+        print(a_mag_file.name)
+
+        fcaha = h5py.File(a_mag_file, 'r')
+
+        ind = np.where(fcaha['profiles'][0, 0, 0, :, 0] != 0)[0]
+
+        ind = ind[0:800]
+        ha_center_wave = 6562.8 / 10
+        wave_range = 0.3 / 10
+
+        transition_skip_list = np.array(
+            [
+                [6560.84, 0.25],
+                [6564.76, 0.25],
+                [6561.09, 0.1],
+                [6564.51, 0.1],
+                [6562.1, 0.25],
+                [6563.5, 0.25],
+                [6561.955, 0.3],
+                [6563.645, 0.3],
+                [6561.45, 0.35],
+                [6564.15, 0.35]
+            ]
+        ) / 10
+
+        actual_calculate_vlos = prepare_calculate_vlos_cog(
+            fcaha['profiles'][0][:, :, ind],
+            fcaha['wav'][ind] / 10,
+            ha_center_wave,
+            ha_center_wave - wave_range,
+            ha_center_wave + wave_range,
+            transition_skip_list=transition_skip_list,
+            bin_factor=bin_factor
+        )
+
+        vec_actual_calculate_vlos = np.vectorize(actual_calculate_vlos)
+
+        magha = np.fromfunction(vec_actual_calculate_vlos, shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
+
+        sunpy.io.write_file(level5path / '{}_vlos_ha_core.fits'.format(a_mag_file.name), magha, dict(), overwrite=True)
+
+        sys.stdout.write('Ha core created\n')
+
+        wave_range = 1.5 / 10
+
+        actual_calculate_vlos = prepare_calculate_vlos_cog(
+            fcaha['profiles'][0][:, :, ind],
+            fcaha['wav'][ind] / 10,
+            ha_center_wave,
+            ha_center_wave - wave_range,
+            ha_center_wave,
+            transition_skip_list=transition_skip_list,
+            bin_factor=bin_factor
+        )
+
+        vec_actual_calculate_vlos = np.vectorize(actual_calculate_vlos)
+
+        magfha = np.fromfunction(vec_actual_calculate_vlos,
+                                 shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
+
+        sunpy.io.write_file(level5path / '{}_vlos_ha_full_line.fits'.format(a_mag_file.name), magfha, dict(),
+                            overwrite=True)
+
+        sys.stdout.write('Ha full line created\n')
+
+
 def create_fov_plots(datestring, timestring, x1, y1, x2, y2, ticks, limit, points, pcolors):
 
     colors = ["blue", "green", "white", "darkgoldenrod", "darkred"]
@@ -3776,6 +3862,8 @@ def make_line_cuts(l1x, l1y, l2x, l2y, line_colors):
 if __name__ == '__main__':
     # calculate_magnetic_field('20230527', bin_factor=None)
 
+    calculate_vlos_cog_field('20230527', bin_factor=None)
+
     # datestring='20230603'
     # timestring='073616'
     # y1 = 14
@@ -4175,7 +4263,7 @@ if __name__ == '__main__':
     # line_colors = ['red', 'blue']
     # create_magnetic_field_plots(points, pcolors, l1x, l1y, l2x, l2y, line_colors)
 
-    create_magnetic_field_scatter_plots()
+    # create_magnetic_field_scatter_plots()
     # make_legend()
 
     # points = [
