@@ -210,7 +210,7 @@ def prepare_calculate_vlos_cog(
             stokes_I = np.mean(stokes_I.reshape(stokes_I.shape[0] // bin_factor, bin_factor), 1)
             wave = np.mean(wave.reshape(wave.shape[0] // bin_factor, bin_factor), 1)
 
-        return calculate_b_los(
+        return calculate_v_los_cog(
             stokes_I,
             wave,
             lambda0,
