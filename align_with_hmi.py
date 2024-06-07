@@ -21,6 +21,7 @@ from scipy.ndimage import gaussian_filter
 from skimage.exposure import adjust_gamma
 import matplotlib.animation as animation
 from scipy.interpolate import CubicSpline
+from skimage.transform import rescale
 
 
 '''
@@ -80,9 +81,9 @@ def flicker(
 
     final_image_2[0 + offset_2_y: image2.shape[0] + offset_2_y, 0 + offset_2_x: image2.shape[1] + offset_2_x] = image2
 
-    final_image_1 = final_image_1 / np.nanmax(final_image_1)
+    final_image_1 = final_image_1 / np.nanmax(np.abs(final_image_1))
 
-    final_image_2 = final_image_2 / np.nanmax(final_image_2)
+    final_image_2 = final_image_2 / np.nanmax(np.abs(final_image_2))
 
     imagelist = [final_image_1, final_image_2]
 
@@ -102,7 +103,7 @@ def flicker(
     def updatefig(j):
         # set the data in the axesimage object
         im.set_array(imagelist[j])
-        mn, mx = imagelist[j].min() * 0.9, imagelist[j].max() * 1.1
+        mn, mx = np.nanmin(imagelist[j]) * 0.9, np.nanmax(imagelist[j]) * 1.1
         im.set_clim(mn, mx)
         # return the artists set
         return [im]
@@ -957,6 +958,94 @@ def make_aia_animation():
     )
 
 
+def run_halpha_flicker(
+        datestring,
+        timestring,
+        halpha_file,
+        hmi_aligned_file,
+        hmi_original_file,
+        angle=None,
+        offset_x=0,
+        offset_y=0,
+        init_x=307,
+        init_y=-314,
+        scale_factor=1,
+        create_files=False
+):
+
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+
+    aligned_hmi = base_path / datestring / 'Level-4-alt-alt' / 'aligned_hmi'
+
+    real_hmi = base_path / datestring / 'Level-4-alt-alt' / 'real_hmi'
+
+    aligned_halpha = base_path / datestring / 'Level-4-alt-alt' / 'aligned_halpha'
+
+    halpha_base = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/Halpha/20230527/Level1/')
+
+    # hmi_data, hmi_header = sunpy.io.read_file(aligned_hmi / hmi_aligned_file)[0]
+
+    hmi_original_data, hmi_original_header = sunpy.io.read_file(real_hmi / hmi_original_file)[1]
+
+    hmi_original_map = sunpy.map.Map(hmi_original_data, hmi_original_header)
+
+    aia_hmi_original_map = register(hmi_original_map)
+
+    halpha_image, halpha_header = sunpy.io.read_file(halpha_base / halpha_file)[0]
+
+    rescaled_halpha_image = rescale(halpha_image, scale=scale_factor)
+
+    if rescaled_halpha_image.shape[0] %2 != 0:
+        sys.stdout.write('Scale factor produces odd shape\n')
+        sys.exit(1)
+
+    if rescaled_halpha_image.shape[0] < aia_hmi_original_map.data.shape[0]:
+        increase_size = aia_hmi_original_map.data.shape[0] - rescaled_halpha_image.shape[0]
+        final_halpha_image = np.zeros_like(aia_hmi_original_map.data)
+        final_halpha_image[increase_size//2:increase_size//2 + rescaled_halpha_image.shape[0], increase_size//2:increase_size//2 + rescaled_halpha_image.shape[1]] = rescaled_halpha_image
+
+    elif rescaled_halpha_image.shape[0] > aia_hmi_original_map.data.shape[0]:
+        print(rescaled_halpha_image.shape[0])
+        final_halpha_image = rescaled_halpha_image[offset_y:offset_y + aia_hmi_original_map.data.shape[0], offset_x:offset_x+ aia_hmi_original_map.data.shape[1]]
+
+    else:
+        final_halpha_image = rescaled_halpha_image
+
+    if angle is not None:
+        final_halpha_image = scipy.ndimage.rotate(final_halpha_image, angle=angle, reshape=False)
+
+    if create_files is False:
+        flicker(
+            np.abs(aia_hmi_original_map.data), final_halpha_image
+        )
+
+    else:
+        header = dict()
+
+        header['CDELT2'] = 0.6
+
+        header['CDELT3'] = 0.6
+
+        header['CUNIT2'] = 'arcsec'
+
+        header['CUNIT3'] = 'arcsec'
+
+        header['CTYPE2'] = 'HPLT-TAN'
+
+        header['CTYPE3'] = 'HPLN-TAN'
+
+        header['CNAME2'] = 'HPC lat'
+
+        header['CNAME3'] = 'HPC lon'
+
+        sunpy.io.write_file(
+            aligned_halpha / 'Halpha_reference_image_{}_{}_{}.fits'.format(halpha_file, datestring, timestring),
+            final_halpha_image,
+            aia_hmi_original_map.meta,
+            overwrite=True
+        )
+
+
 if __name__ == '__main__':
     # run_flicker(
     #     datestring='20230603', timestring='073616',
@@ -1039,12 +1128,12 @@ if __name__ == '__main__':
     #     init_y=-250
     # )
     #
-    calculate_mu(
-        datestring='20230527',
-        hmi_cont_file='hmi.Ic_720s.20230527_023600_TAI.3.continuum.fits',
-        init_x=0,
-        init_y=-260
-    )
+    # calculate_mu(
+    #     datestring='20230527',
+    #     hmi_cont_file='hmi.Ic_720s.20230527_023600_TAI.3.continuum.fits',
+    #     init_x=0,
+    #     init_y=-260
+    # )
 
     # get_aia_reference_image(
     #     datestring='20230527', timestring='074428',
@@ -1489,15 +1578,15 @@ if __name__ == '__main__':
     #     save=True
     # )
     #
-    # get_aia_reference_image(
-    #     datestring='20230527', timestring='074428',
-    #     aia_file='hmi.M_720s.20230527_024800_TAI.3.magnetogram.fits',
-    #     angle=-19,
-    #     offset_x=94, offset_y=62,
-    #     init_x=-20,
-    #     init_y=-260,
-    #     save=True
-    # )
+    get_aia_reference_image(
+        datestring='20230527', timestring='074428',
+        aia_file='hmi.M_720s.20230527_024800_TAI.3.magnetogram.fits',
+        angle=-19,
+        offset_x=94, offset_y=62,
+        init_x=-20,
+        init_y=-260,
+        save=True
+    )
 
     # calibrate_hmi_with_hmi(
     #     datestring='20230527', timestring='074428',
@@ -1627,3 +1716,18 @@ if __name__ == '__main__':
 
     # align_aia_sequence()
     # make_aia_animation()
+
+    # run_halpha_flicker(
+    #     datestring='20230527',
+    #     timestring='074428',
+    #     halpha_file='HA_20230527T024751.fits',
+    #     hmi_aligned_file='hmi.M_720s.20230527_024800_TAI.3.magnetogram.fits_20230527_074428.fits',
+    #     hmi_original_file='hmi.M_720s.20230527_024800_TAI.3.magnetogram.fits',
+    #     angle=None,
+    #     offset_x=392,
+    #     offset_y=392,
+    #     init_x=0,
+    #     init_y=0,
+    #     scale_factor=1.238/0.6,
+    #     create_files=True
+    # )

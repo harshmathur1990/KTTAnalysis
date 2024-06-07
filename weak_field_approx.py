@@ -1,5 +1,5 @@
 import numpy as np
-
+from scipy.signal import argrelextrema
 
 def calculate_b_los(
     stokes_I,
@@ -131,6 +131,75 @@ def prepare_calculate_blos(
         )
     return actual_calculate_blos
 
+
+def prepare_calculate_blos_differing_wavelengths(
+    obs,
+    wavelength_arr,
+    lambda0,
+    g_eff,
+    transition_skip_list=None,
+    errors=False,
+    bin_factor=None
+):
+    print_flag = True
+
+    maxima_arr = np.zeros((obs.shape[0], obs.shape[1]), dtype=np.int64)
+    def actual_calculate_blos(i, j):
+        nonlocal print_flag
+
+        if print_flag is False:
+            print(obs.shape)
+            print(wavelength_arr)
+            print(lambda0)
+            print(g_eff)
+            print(transition_skip_list)
+            print(errors)
+            print(bin_factor)
+            print_flag = True
+
+        i = int(i)
+        j = int(j)
+        stokes_I, stokes_V = obs[i, j, :, 0], obs[i, j, :, 3]
+        wave = wavelength_arr
+        if bin_factor is not None:
+            stokes_I = np.mean(stokes_I.reshape(stokes_I.shape[0] // bin_factor, bin_factor), 1)
+            stokes_V = np.mean(stokes_V.reshape(stokes_V.shape[0] // bin_factor, bin_factor), 1)
+            wave = np.mean(wave.reshape(wave.shape[0] // bin_factor, bin_factor), 1)
+
+        v_by_i = stokes_V / stokes_I
+
+        maxima = list(
+            argrelextrema(
+                np.abs(v_by_i)[150:],
+                np.greater,
+                order=2
+            )[0]
+        )
+        maxima.sort()
+
+        if len(maxima) == 0:
+            print("I am here")
+
+        maxima = maxima[0] + 150
+
+        maxima_arr[i, j] = maxima
+
+        lambda_range_min = wave[maxima] - (0.05/10)
+
+        lambda_range_max = wave[maxima] + (0.05/10)
+
+        return calculate_b_los(
+            stokes_I,
+            stokes_V,
+            wave,
+            lambda0,
+            lambda_range_min,
+            lambda_range_max,
+            g_eff,
+            transition_skip_list=transition_skip_list,
+            errors=errors
+        )
+    return actual_calculate_blos, maxima_arr
 
 def calculate_v_los_cog(
     stokes_I,

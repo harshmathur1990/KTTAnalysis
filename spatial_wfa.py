@@ -84,18 +84,18 @@ def calculate_magnetic_field_for_all(datestring):
 
     all_mag_files = [level5path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc']
 
-    transition_skip_list = np.array(
-        [
-            [6560.84, 0.25],
-            [6561.09, 0.1],
-            [6562.1, 0.25],
-            [6563.645, 0.3],
-            [6564.15, 0.35]
-        ]
-    )
-
     for a_mag_file in all_mag_files:
         print(a_mag_file.name)
+
+        # transition_skip_list = np.array(
+        #     [
+        #         [6560.84, 0.25],
+        #         [6561.09, 0.1],
+        #         [6562.1, 0.25],
+        #         [6563.645, 0.3],
+        #         [6564.15, 0.35]
+        #     ]
+        # )
 
         # magha_full_line = calculate_wfa(a_mag_file, 6562.8-1.5, 6562.8+1.5, 6562, transition_skip_list=transition_skip_list, bin_factor=None)
         #
@@ -113,19 +113,119 @@ def calculate_magnetic_field_for_all(datestring):
         #     overwrite=True
         # )
 
-        ca_wing = calculate_wfa(a_mag_file, 8661.7, 8661.8, 8661, transition_skip_list=None, bin_factor=None)
+        # transition_skip_list = np.array(
+        #     [
+        #         [6560.84, 0.25],
+        #         [6561.09, 0.1],
+        #         [6562.1, 0.25],
+        #         [6562.8, 0.15],
+        #         [6563.645, 0.3],
+        #         [6564.15, 0.35]
+        #     ]
+        # )
+        #
+        # magha_wing = calculate_wfa(a_mag_file, 6562.8 - 1.5, 6562.8 + 1.5, 6562,
+        #                                 transition_skip_list=transition_skip_list, bin_factor=None)
+        #
+        # sunpy.io.write_file(
+        #     level5path / '{}_magha_wing_spatial.fits'.format(a_mag_file.name),
+        #     magha_wing, dict(),
+        #     overwrite=True
+        # )
+
+        # ca_wing = calculate_wfa(a_mag_file, 8662.17 + 0.13, 8662.17 + 0.23, 8662, transition_skip_list=None,
+        #                         bin_factor=None)
+        #
+        # sunpy.io.write_file(
+        #     level5path / '{}_ca_wing_red_spatial.fits'.format(a_mag_file.name),
+        #     ca_wing, dict(),
+        #     overwrite=True
+        # )
+        #
+        # ca_wing = calculate_wfa(a_mag_file, 8662.17-0.45, 8662.17-0.35, 8662, transition_skip_list=None,
+        #                         bin_factor=None)
+        #
+        # sunpy.io.write_file(
+        #     level5path / '{}_ca_wing_blue_spatial.fits'.format(a_mag_file.name),
+        #     ca_wing, dict(),
+        #     overwrite=True
+        # )
+        #
+        # ca_wing = calculate_wfa(a_mag_file, 8661.96-0.05, 8661.96+0.05, 8662, transition_skip_list=None, bin_factor=None)
+        #
+        # sunpy.io.write_file(
+        #     level5path / '{}_ca_wing_middle_lobe_spatial.fits'.format(a_mag_file.name),
+        #     ca_wing, dict(),
+        #     overwrite=True
+        # )
+        #
+        # ca_wing = calculate_wfa(a_mag_file, 8663 - 0.05, 8663 + 0.05, 8662, transition_skip_list=None,
+        #                         bin_factor=None)
+        #
+        # sunpy.io.write_file(
+        #     level5path / '{}_ca_far_wing_spatial.fits'.format(a_mag_file.name),
+        #     ca_wing, dict(),
+        #     overwrite=True
+        # )
+
+        # ca_wing = calculate_wfa(a_mag_file, 8662.17 + 0.43, 8662.17 + 0.53, 8662, transition_skip_list=None,
+        #                         bin_factor=None)
+        #
+        # sunpy.io.write_file(
+        #     level5path / '{}_ca_0p43_0p53_spatial.fits'.format(a_mag_file.name),
+        #     ca_wing, dict(),
+        #     overwrite=True
+        # )
+
+        # ca_wing = calculate_wfa(a_mag_file, 8662.17 + 0.23, 8662.17 + 0.33, 8662, transition_skip_list=None,
+        #                         bin_factor=None)
+        #
+        # sunpy.io.write_file(
+        #     level5path / '{}_ca_0p23_0p33_spatial.fits'.format(a_mag_file.name),
+        #     ca_wing, dict(),
+        #     overwrite=True
+        # )
+
+        # ca_wing = calculate_wfa(a_mag_file, 8662.17 + 0.33, 8662.17 + 0.43, 8662, transition_skip_list=None,
+        #                         bin_factor=None)
+        #
+        # sunpy.io.write_file(
+        #     level5path / '{}_ca_0p33_0p43_spatial.fits'.format(a_mag_file.name),
+        #     ca_wing, dict(),
+        #     overwrite=True
+        # )
+
+        # ca_wing = calculate_wfa(a_mag_file, 8662.17 + 0.27, 8662.17 + 0.37, 8662, transition_skip_list=None,
+        #                         bin_factor=None)
+        #
+        # sunpy.io.write_file(
+        #     level5path / '{}_ca_0p27_0p37_spatial.fits'.format(a_mag_file.name),
+        #     ca_wing, dict(),
+        #     overwrite=True
+        # )
+
+        # ca_wing = calculate_wfa(a_mag_file, 8662.17 + 0.27, 8662.17 + 0.30, 8662, transition_skip_list=None,
+        #                         bin_factor=None)
+        #
+        # sunpy.io.write_file(
+        #     level5path / '{}_ca_0p27_0p30_spatial.fits'.format(a_mag_file.name),
+        #     ca_wing, dict(),
+        #     overwrite=True
+        # )
+        #
+        # ca_core = calculate_wfa(a_mag_file, 8662.17, 8662.17 + 0.4, 8662, transition_skip_list=None, bin_factor=None)
+        #
+        # sunpy.io.write_file(
+        #     level5path / '{}_ca_core_spatial.fits'.format(a_mag_file.name),
+        #     ca_core, dict(),
+        #     overwrite=True
+        # )
+
+        ca_fe = calculate_wfa(a_mag_file, 8661.7, 8661.8, 8661, transition_skip_list=None, bin_factor=None)
 
         sunpy.io.write_file(
-            level5path / '{}_ca_wing_spatial.fits'.format(a_mag_file.name),
-            ca_wing, dict(),
-            overwrite=True
-        )
-
-        ca_core = calculate_wfa(a_mag_file, 8662.17, 8662.17 + 0.4, 8662, transition_skip_list=None, bin_factor=None)
-
-        sunpy.io.write_file(
-            level5path / '{}_ca_core_spatial.fits'.format(a_mag_file.name),
-            ca_core, dict(),
+            level5path / '{}_ca_fe_spatial.fits'.format(a_mag_file.name),
+            ca_fe, dict(),
             overwrite=True
         )
 

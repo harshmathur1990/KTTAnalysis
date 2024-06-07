@@ -15,6 +15,10 @@ import seaborn as sns
 import pandas as pd
 from matplotlib.patches import Patch
 from scipy.stats import pearsonr
+from astropy import units as u
+import astropy.coordinates
+import sunpy.map
+from aiapy.calibrate import register
 
 
 def add_subplot_axes(ax,rect,axisbg='w'):
@@ -57,6 +61,95 @@ def calculate_magnetic_field(datestring, errors=None, bin_factor=None):
 
     all_mag_files = [level5path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc']
 
+    for a_mag_file in all_mag_files:
+
+        print(a_mag_file.name)
+
+        # fcaha = h5py.File(a_mag_file, 'r')
+        #
+        # ind = np.where(fcaha['profiles'][0, 0, 0, :, 0] != 0)[0]
+        #
+        # ind = ind[800:]
+        #
+        # actual_calculate_blos = prepare_calculate_blos(
+        #     fcaha['profiles'][0][:, :, ind],
+        #     fcaha['wav'][ind] / 10,
+        #     8661.8991 / 10,
+        #     8661.7 / 10,
+        #     8661.8 / 10,
+        #     1.5,
+        #     transition_skip_list=None,
+        #     bin_factor=bin_factor,
+        #     errors=errors
+        # )
+        #
+        # vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
+        #
+        # magca = np.fromfunction(vec_actual_calculate_blos, shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
+        #
+        # if errors is not None:
+        #     sunpy.io.write_file(level5path / '{}_mag_ca_fe_errors.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
+        # else:
+        #     sunpy.io.write_file(level5path / '{}_mag_ca_fe.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
+        #
+        # sys.stdout.write('Ca fe created\n')
+        #
+        # actual_calculate_blos = prepare_calculate_blos(
+        #     fcaha['profiles'][0][:, :, ind],
+        #     fcaha['wav'][ind] / 10,
+        #     8662.17 / 10,
+        #     8662.17 / 10,
+        #     (8662.17 + 0.4) / 10,
+        #     0.83,
+        #     transition_skip_list=None,
+        #     bin_factor=bin_factor,
+        #     errors=errors
+        # )
+        #
+        # vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
+        #
+        # magca = np.fromfunction(vec_actual_calculate_blos,
+        #                         shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
+        #
+        # if errors is not None:
+        #     sunpy.io.write_file(level5path / '{}_mag_ca_core_errors.fits'.format(a_mag_file.name), magca, dict(),
+        #                         overwrite=True)
+        # else:
+        #     sunpy.io.write_file(level5path / '{}_mag_ca_core.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
+        #
+        # sys.stdout.write('Ca core created\n')
+
+        fcaha = h5py.File(a_mag_file, 'r')
+
+        ind = np.where(fcaha['profiles'][0, 0, 0, :, 0] != 0)[0]
+
+        ind = ind[800:]
+
+        actual_calculate_blos, maxima_arr = prepare_calculate_blos_differing_wavelengths(
+            fcaha['profiles'][0][:, :, ind],
+            fcaha['wav'][ind] / 10,
+            8662.17 / 10,
+            0.83,
+            transition_skip_list=None,
+            bin_factor=bin_factor,
+            errors=errors
+        )
+
+        vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
+
+        magca = np.fromfunction(vec_actual_calculate_blos,
+                                shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
+
+        if errors is not None:
+            sunpy.io.write_file(level5path / '{}_mag_ca_middle_lobe_differing_wave_errors.fits'.format(a_mag_file.name), magca, dict(),
+                                overwrite=True)
+        else:
+            sunpy.io.write_file(level5path / '{}_mag_ca_middle_lobe_differing_wave.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
+
+        sunpy.io.write_file(level5path / '{}_mag_ca_middle_lobe_differing_wave_maxima_arr.fits'.format(a_mag_file.name), maxima_arr, dict(), overwrite=True)
+
+        sys.stdout.write('Ca blue_wing_differing_wave created\n')
+
     # for a_mag_file in all_mag_files:
     #
     #     print(a_mag_file.name)
@@ -65,129 +158,82 @@ def calculate_magnetic_field(datestring, errors=None, bin_factor=None):
     #
     #     ind = np.where(fcaha['profiles'][0, 0, 0, :, 0] != 0)[0]
     #
-    #     ind = ind[800:]
+    #     ind = ind[0:800]
+    #     ha_center_wave = 6562.8 / 10
+    #     wave_range = 0.15 / 10
     #
-    #     actual_calculate_blos = prepare_calculate_blos(
-    #         fcaha['profiles'][0][:, :, ind],
-    #         fcaha['wav'][ind] / 10,
-    #         8661.8991 / 10,
-    #         8661.7 / 10,
-    #         8661.8 / 10,
-    #         1.5,
-    #         transition_skip_list=None,
-    #         bin_factor=bin_factor,
-    #         errors=errors
-    #     )
-    #
-    #     vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
-    #
-    #     magca = np.fromfunction(vec_actual_calculate_blos, shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
-    #
-    #     if errors is not None:
-    #         sunpy.io.write_file(level5path / '{}_mag_ca_fe_errors.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
-    #     else:
-    #         sunpy.io.write_file(level5path / '{}_mag_ca_fe.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
-    #
-    #     sys.stdout.write('Ca fe created\n')
-    #
-    #     actual_calculate_blos = prepare_calculate_blos(
-    #         fcaha['profiles'][0][:, :, ind],
-    #         fcaha['wav'][ind] / 10,
-    #         8662.17 / 10,
-    #         8662.17 / 10,
-    #         (8662.17 + 0.4) / 10,
-    #         0.83,
-    #         transition_skip_list=None,
-    #         bin_factor=bin_factor,
-    #         errors=errors
-    #     )
-    #
-    #     vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
-    #
-    #     magca = np.fromfunction(vec_actual_calculate_blos,
-    #                             shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
-    #
-    #     if errors is not None:
-    #         sunpy.io.write_file(level5path / '{}_mag_ca_core_errors.fits'.format(a_mag_file.name), magca, dict(),
-    #                             overwrite=True)
-    #     else:
-    #         sunpy.io.write_file(level5path / '{}_mag_ca_core.fits'.format(a_mag_file.name), magca, dict(), overwrite=True)
-    #
-    #     sys.stdout.write('Ca core created\n')
+    #     transition_skip_list = np.array(
+    #         [
+    #             [6560.84, 0.25],
+    #             [6561.09, 0.1],
+    #             [6562.1, 0.25],
+    #             [6563.645, 0.3],
+    #             [6564.15, 0.35]
+    #         ]
+    #     ) / 10
 
-    for a_mag_file in all_mag_files:
+        # actual_calculate_blos = prepare_calculate_blos(
+        #     fcaha['profiles'][0][:, :, ind],
+        #     fcaha['wav'][ind] / 10,
+        #     ha_center_wave,
+        #     ha_center_wave - wave_range,
+        #     ha_center_wave + wave_range,
+        #     1.048,
+        #     transition_skip_list=transition_skip_list,
+        #     bin_factor=bin_factor,
+        #     errors=errors
+        # )
 
-        print(a_mag_file.name)
+        # vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
+        #
+        # magha = np.fromfunction(vec_actual_calculate_blos, shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
+        #
+        # if errors is not None:
+        #     sunpy.io.write_file(level5path / '{}_mag_ha_core_errors.fits'.format(a_mag_file.name), magha, dict(),
+        #                         overwrite=True)
+        # else:
+        #     sunpy.io.write_file(level5path / '{}_mag_ha_core.fits'.format(a_mag_file.name), magha, dict(), overwrite=True)
+        #
+        # sys.stdout.write('Ha core created\n')
 
-        fcaha = h5py.File(a_mag_file, 'r')
-
-        ind = np.where(fcaha['profiles'][0, 0, 0, :, 0] != 0)[0]
-
-        ind = ind[0:800]
-        ha_center_wave = 6562.8 / 10
-        wave_range = 0.15 / 10
-
-        transition_skip_list = np.array(
-            [
-                [6560.84, 0.25],
-                [6561.09, 0.1],
-                [6562.1, 0.25],
-                [6563.645, 0.3],
-                [6564.15, 0.35]
-            ]
-        ) / 10
-
-        actual_calculate_blos = prepare_calculate_blos(
-            fcaha['profiles'][0][:, :, ind],
-            fcaha['wav'][ind] / 10,
-            ha_center_wave,
-            ha_center_wave - wave_range,
-            ha_center_wave + wave_range,
-            1.048,
-            transition_skip_list=transition_skip_list,
-            bin_factor=bin_factor,
-            errors=errors
-        )
-
-        vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
-
-        magha = np.fromfunction(vec_actual_calculate_blos, shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
-
-        if errors is not None:
-            sunpy.io.write_file(level5path / '{}_mag_ha_core_errors.fits'.format(a_mag_file.name), magha, dict(),
-                                overwrite=True)
-        else:
-            sunpy.io.write_file(level5path / '{}_mag_ha_core.fits'.format(a_mag_file.name), magha, dict(), overwrite=True)
-
-        sys.stdout.write('Ha core created\n')
-
-        wave_range = 1.5 / 10
-
-        actual_calculate_blos = prepare_calculate_blos(
-            fcaha['profiles'][0][:, :, ind],
-            fcaha['wav'][ind] / 10,
-            ha_center_wave,
-            ha_center_wave - wave_range,
-            ha_center_wave,
-            1.048,
-            transition_skip_list=transition_skip_list,
-            bin_factor=bin_factor,
-            errors=errors
-        )
-
-        vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
-
-        magfha = np.fromfunction(vec_actual_calculate_blos,
-                                 shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
-
-        if errors is not None:
-            sunpy.io.write_file(level5path / '{}_mag_ha_full_line_errors.fits'.format(a_mag_file.name), magfha, dict(),
-                                overwrite=True)
-        else:
-            sunpy.io.write_file(level5path / '{}_mag_ha_full_line.fits'.format(a_mag_file.name), magfha, dict(),
-                            overwrite=True)
-
-        sys.stdout.write('Ha full line created\n')
+        # wave_range = 1.5 / 10
+        #
+        # transition_skip_list = np.array(
+        #     [
+        #         [6560.84, 0.25],
+        #         [6561.09, 0.1],
+        #         [6562.1, 0.25],
+        #         [6562.8, 0.15],
+        #         [6563.645, 0.3],
+        #         [6564.15, 0.35]
+        #     ]
+        # ) / 10
+        #
+        # actual_calculate_blos = prepare_calculate_blos(
+        #     fcaha['profiles'][0][:, :, ind],
+        #     fcaha['wav'][ind] / 10,
+        #     ha_center_wave,
+        #     ha_center_wave - wave_range,
+        #     ha_center_wave,
+        #     1.048,
+        #     transition_skip_list=transition_skip_list,
+        #     bin_factor=bin_factor,
+        #     errors=errors
+        # )
+        #
+        # vec_actual_calculate_blos = np.vectorize(actual_calculate_blos)
+        #
+        # magfha = np.fromfunction(vec_actual_calculate_blos,
+        #                          shape=(fcaha['profiles'].shape[1], fcaha['profiles'].shape[2]))
+        #
+        # if errors is not None:
+        #     sunpy.io.write_file(level5path / '{}_mag_ha_wing_errors.fits'.format(a_mag_file.name), magfha, dict(),
+        #                         overwrite=True)
+        # else:
+        #     sunpy.io.write_file(level5path / '{}_mag_ha_wing.fits'.format(a_mag_file.name), magfha, dict(),
+        #                     overwrite=True)
+        #
+        # sys.stdout.write('Ha wing created\n')
 
 
 def calculate_vlos_cog_field(datestring, errors=None, bin_factor=None):
@@ -387,7 +433,7 @@ def create_fov_plots(datestring, timestring, x1, y1, x2, y2, ticks, limit, point
 
     cbar = fig.colorbar(im12, cax=axins12, ticks=ticks, orientation='horizontal')
 
-    tick_values = np.array(ticks) / 100
+    tick_values = np.array(ticks) / 1000
 
     tick_values = tick_values.astype(np.int64)
 
@@ -429,52 +475,73 @@ def create_fov_plots(datestring, timestring, x1, y1, x2, y2, ticks, limit, point
     )
 
     axs[0][0].text(
-        0.05, 0.92,
+        0.35, 0.92,
         '(a) Ca far-wing',
         transform=axs[0][0].transAxes,
-        color='white'
+        color='black'
     )
 
     axs[0][1].text(
-        0.05, 0.92,
+        0.35, 0.92,
         r'(c) H$\alpha$ far-wing',
         transform=axs[0][1].transAxes,
-        color='white'
+        color='black'
     )
 
     axs[0][2].text(
-        0.05, 0.92,
-        r'(e) HMI continuum',
+        0.2, 0.92,
+        r'(e)',
         transform=axs[0][2].transAxes,
         color='white'
     )
 
+    axs[0][2].text(
+        0.35, 0.92,
+        r'HMI continuum',
+        transform=axs[0][2].transAxes,
+        color='black'
+    )
+
     axs[1][0].text(
-        0.05, 0.92,
-        '(b) Ca core',
+        0.5, 0.92,
+        '(b)',
+        transform=axs[1][0].transAxes,
+        color='black'
+    )
+
+    axs[1][0].text(
+        0.65, 0.92,
+        'Ca core',
         transform=axs[1][0].transAxes,
         color='white'
     )
 
     axs[1][1].text(
-        0.05, 0.92,
+        0.45, 0.92,
         r'(d) H$\alpha$ core',
         transform=axs[1][1].transAxes,
-        color='white'
+        color='black'
     )
 
     axs[1][2].text(
         0.05, 0.92,
-        r'(f) HMI magnetogram',
+        r'(f)',
         transform=axs[1][2].transAxes,
         color='white'
     )
 
     axs[1][2].text(
-        0.05, 0.85,
-        r'     [x 100 G]',
+        0.2, 0.92,
+        r'HMI magnetogram',
         transform=axs[1][2].transAxes,
-        color='white'
+        color='black'
+    )
+
+    axs[1][2].text(
+        0.4, 0.85,
+        r'     [kG]',
+        transform=axs[1][2].transAxes,
+        color='black'
     )
 
     plt.subplots_adjust(left=0.13, right=1, bottom=0.13, top=1, wspace=0.0, hspace=0.0)
@@ -916,7 +983,7 @@ def make_profile_plots(datestring, timestring, points, color, index, y1, x1):
 
         axs[indice][2].plot(f['wav'][ind[800:]], mca, color='gray', linewidth=0.5)
 
-    if index > 0:
+    if index > 1:
         axs[1][2].text(
             -0.7, -0.57,
             r'Wavelength [$\mathrm{\AA}$]',
@@ -1512,9 +1579,9 @@ def create_atmospheric_param_plots(points, pcolors):
 
     im11 = axs[1][1].imshow((vlos[:, :, ind_n_5] - calib_velocity) / 1e5, cmap='bwr', origin='lower', extent=extent, vmin=-15, vmax=15)
 
-    im02 = axs[0][2].imshow(vturb[:, :, ind_n_1] / 1e5, cmap='summer', origin='lower', extent=extent, vmin=0, vmax=5)
+    im02 = axs[0][2].imshow(vturb[:, :, ind_n_1] / 1e5, cmap='summer', origin='lower', extent=extent, vmin=0, vmax=6)
 
-    im12 = axs[1][2].imshow(vturb[:, :, ind_n_5] / 1e5, cmap='summer', origin='lower', extent=extent, vmin=0, vmax=5)
+    im12 = axs[1][2].imshow(vturb[:, :, ind_n_5] / 1e5, cmap='summer', origin='lower', extent=extent, vmin=0, vmax=8)
 
     level5path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/')
 
@@ -1686,43 +1753,71 @@ def create_atmospheric_param_plots(points, pcolors):
     )
 
     axs[0][0].text(
-        0.15, 0.9,
+        0.55, 0.9,
         '(a) $T$ [kK]',
         transform=axs[0][0].transAxes,
         color='black'
     )
 
     axs[0][1].text(
-        0.15, 0.9,
-        r'(c) $V_{LOS}$ [$\mathrm{km\;s^{-1}}$]',
+        0.4, 0.9,
+        r'(c) $V_{LOS}$',
+        transform=axs[0][1].transAxes,
+        color='black'
+    )
+
+    axs[0][1].text(
+        0.55, 0.8,
+        r'[$\mathrm{km\;s^{-1}}$]',
         transform=axs[0][1].transAxes,
         color='black'
     )
 
     axs[0][2].text(
-        0.15, 0.9,
-        r'(e) $V_{turb}$ [$\mathrm{km\;s^{-1}}$]',
+        0.4, 0.9,
+        r'(e) $V_{turb}$',
+        transform=axs[0][2].transAxes,
+        color='black'
+    )
+
+    axs[0][2].text(
+        0.55, 0.8,
+        r'[$\mathrm{km\;s^{-1}}$]',
         transform=axs[0][2].transAxes,
         color='black'
     )
 
     axs[1][0].text(
-        0.15, 0.9,
+        0.55, 0.77,
         '(b) $T$ [kK]',
         transform=axs[1][0].transAxes,
         color='black'
     )
 
     axs[1][1].text(
-        0.15, 0.9,
-        r'(d) $V_{LOS}$ [$\mathrm{km\;s^{-1}}$]',
+        0.4, 0.9,
+        r'(d) $V_{LOS}$',
+        transform=axs[1][1].transAxes,
+        color='black'
+    )
+
+    axs[1][1].text(
+        0.55, 0.8,
+        r'[$\mathrm{km\;s^{-1}}$]',
         transform=axs[1][1].transAxes,
         color='black'
     )
 
     axs[1][2].text(
-        0.15, 0.9,
-        r'(f) $V_{turb}$ [$\mathrm{km\;s^{-1}}$]',
+        0.4, 0.9,
+        r'(f) $V_{turb}$',
+        transform=axs[1][2].transAxes,
+        color='black'
+    )
+
+    axs[1][2].text(
+        0.55, 0.8,
+        r'[$\mathrm{km\;s^{-1}}$]',
         transform=axs[1][2].transAxes,
         color='black'
     )
@@ -1874,7 +1969,7 @@ def create_magnetic_field_plots(points, pcolors, l1x, l1y, l2x, l2y, line_colors
 
     fa = h5py.File(inversion_base_path / 'combined_output_cycle_B_T_2_retry_all.nc', 'r')
 
-    mag_full_line, _ = sunpy.io.read_file(wfa_base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_magha_full_line_spatial.fits')[0]
+    mag_full_line, _ = sunpy.io.read_file(wfa_base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_magha_wing_spatial.fits')[0]
 
     mag_ha_core, _ = sunpy.io.read_file(wfa_base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_magha_core_spatial.fits')[0]
 
@@ -1896,17 +1991,17 @@ def create_magnetic_field_plots(points, pcolors, l1x, l1y, l2x, l2y, line_colors
 
     fig, axs = plt.subplots(2, 3, figsize=(3.5, 2.33))
 
-    im00 = axs[0][0].imshow(blong[:, :, ind_n_1] / 1e2, cmap=cmap1, origin='lower', extent=extent, vmin=-19, vmax=19)
+    im00 = axs[0][0].imshow(blong[:, :, ind_n_1] / 1e3, cmap=cmap1, origin='lower', extent=extent, vmin=-2, vmax=2)
 
-    im10 = axs[1][0].imshow(blong[:, :, ind_n_5] / 1e2, cmap=cmap1, origin='lower', extent=extent, vmin=-19, vmax=19)
+    im10 = axs[1][0].imshow(blong[:, :, ind_n_5] / 1e3, cmap=cmap1, origin='lower', extent=extent, vmin=-2, vmax=2)
 
-    im01 = axs[0][1].imshow(mag_full_line / 1e2, cmap=cmap1, origin='lower', extent=extent, vmin=-19, vmax=19)
+    im01 = axs[0][1].imshow(mag_full_line / 1e3, cmap=cmap1, origin='lower', extent=extent, vmin=-2, vmax=2)
 
-    im11 = axs[1][1].imshow(mag_ha_core / 1e2, cmap=cmap1, origin='lower', extent=extent, vmin=-19, vmax=19)
+    im11 = axs[1][1].imshow(mag_ha_core / 1e3, cmap=cmap1, origin='lower', extent=extent, vmin=-2, vmax=2)
 
-    im02 = axs[0][2].imshow((np.abs(mag_full_line) - np.abs(blong[:, :, ind_n_1])) / 1e2, cmap='bwr', origin='lower', extent=extent, vmin=-15, vmax=15)
+    im02 = axs[0][2].imshow((np.abs(mag_full_line) - np.abs(blong[:, :, ind_n_1])) / 1e3, cmap='bwr', origin='lower', extent=extent, vmin=-1.5, vmax=1.5)
 
-    im12 = axs[1][2].imshow((np.abs(mag_ha_core) - np.abs(blong[:, :, ind_n_5])) / 1e2, cmap='bwr', origin='lower', extent=extent, vmin=-15, vmax=15)
+    im12 = axs[1][2].imshow((np.abs(mag_ha_core) - np.abs(blong[:, :, ind_n_5])) / 1e3, cmap='bwr', origin='lower', extent=extent, vmin=-1.5, vmax=1.5)
 
     level5path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/')
 
@@ -2132,42 +2227,70 @@ def create_magnetic_field_plots(points, pcolors, l1x, l1y, l2x, l2y, line_colors
     # )
 
     axs[0][0].text(
-        0.05, 0.9,
-        r'(a) $\log\tau_{500}$ = $-$1',
+        0.5, 0.9,
+        r'(a) $\log\tau_{500}$',
+        transform=axs[0][0].transAxes,
+        color='black'
+    )
+
+    axs[0][0].text(
+        0.65, 0.8,
+        r'= $-$1',
         transform=axs[0][0].transAxes,
         color='black'
     )
 
     axs[0][1].text(
-        0.05, 0.9,
-        r'(c) WFA (H$\alpha\pm1.5\mathrm{\AA}$ )',
+        0.5, 0.9,
+        r'(c) WFA',
+        transform=axs[0][1].transAxes,
+        color='black'
+    )
+
+    axs[0][1].text(
+        0.45, 0.8,
+        r'(H$\alpha$ wing)',
         transform=axs[0][1].transAxes,
         color='black'
     )
 
     axs[0][2].text(
-        0.05, 0.9,
+        0.5, 0.9,
         r'(e) |c| $-$ |a|',
         transform=axs[0][2].transAxes,
         color='black'
     )
 
     axs[1][0].text(
-        0.05, 0.9,
-        r'(b) $\log\tau_{500}$ = $-$4.5',
+        0.5, 0.9,
+        r'(b) $\log\tau_{500}$',
+        transform=axs[1][0].transAxes,
+        color='black'
+    )
+
+    axs[1][0].text(
+        0.65, 0.8,
+        r'= $-$4.5',
         transform=axs[1][0].transAxes,
         color='black'
     )
 
     axs[1][1].text(
-        0.05, 0.9,
-        r'(d) WFA (H$\alpha\pm0.15\mathrm{\AA}$ )',
+        0.5, 0.9,
+        r'(d) WFA',
+        transform=axs[1][1].transAxes,
+        color='black'
+    )
+
+    axs[1][1].text(
+        0.4, 0.8,
+        r'(H$\alpha\pm0.15\mathrm{\AA}$)',
         transform=axs[1][1].transAxes,
         color='black'
     )
 
     axs[1][2].text(
-        0.05, 0.9,
+        0.5, 0.9,
         r'(f) |d| $-$ |b|',
         transform=axs[1][2].transAxes,
         color='black'
@@ -2209,13 +2332,25 @@ def create_magnetic_field_scatter_plots():
 
     hmi_mag = hmi_mag[y1:y2, x1:x2]
 
-    mag_full_line, _ = sunpy.io.read_file(wfa_base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_magha_full_line_spatial.fits')[0]
+    mag_full_line, _ = sunpy.io.read_file(wfa_base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_magha_wing_spatial.fits')[0]
 
     mag_ha_core, _ = sunpy.io.read_file(wfa_base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_magha_core_spatial.fits')[0]
+
+    mag_ca_red, _ = sunpy.io.read_file(wfa_base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_ca_wing_red_spatial.fits')[0]
+
+    mag_ca_far_red, _ = sunpy.io.read_file(wfa_base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_ca_0p23_0p33_spatial.fits')[0]
+
+    mag_ca_fe, _ = sunpy.io.read_file(wfa_base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_ca_fe_spatial.fits')[0]
 
     mag_full_line = mag_full_line[y1:y2, x1:x2]
 
     mag_ha_core = mag_ha_core[y1:y2, x1:x2]
+
+    mag_ca_red = mag_ca_red[y1:y2, x1:x2]
+
+    mag_ca_far_red = mag_ca_far_red[y1:y2, x1:x2]
+
+    mag_ca_fe = mag_ca_fe[y1:y2, x1:x2]
 
     ltau = fa['ltau500'][0, 0, 0]
 
@@ -2232,6 +2367,8 @@ def create_magnetic_field_scatter_plots():
     lightbridge_mask, _ = sunpy.io.read_file(level5path / 'lightbridge_mask.fits')[0]
 
     emission_mask, _ = sunpy.io.read_file(level5path / 'emission_mask.fits')[0]
+
+    diff_sunspot_mask, _ = sunpy.io.read_file(level5path / 'sunspot_different_umbras_mask.fits')[0]
 
     active_region_mask = sunspot_mask + lightbridge_mask
 
@@ -2273,6 +2410,18 @@ def create_magnetic_field_scatter_plots():
 
     emission_n_1 = blong[a, b, ind_n_1].flatten()
 
+    e, f = np.where(diff_sunspot_mask > 0)
+
+    mag_n_5_diff = blong[e, f, ind_n_5].flatten()
+
+    mag_n_1_diff = blong[e, f, ind_n_1].flatten()
+
+    mag_ha_core_diff = mag_ha_core[e, f]
+
+    category_diff = np.array(["U1", "U2", "U3", "U4"])
+
+    categories_diff = category_diff[diff_sunspot_mask[e, f] - 1]
+
     mag_ha_core_emission = mag_ha_core[a, b]
 
     mag_ha_core = mag_ha_core.flatten()
@@ -2285,6 +2434,18 @@ def create_magnetic_field_scatter_plots():
 
     hmi_mag = hmi_mag.flatten()
 
+    mag_ca_red_emission = mag_ca_red[a, b]
+
+    mag_ca_red = mag_ca_red.flatten()
+
+    mag_ca_far_red_emission = mag_ca_far_red[a, b]
+
+    mag_ca_far_red = mag_ca_far_red.flatten()
+
+    mag_ca_fe_emission = mag_ca_fe[a, b]
+
+    mag_ca_fe = mag_ca_fe.flatten()
+
     mag_n_5_extended = emission_n_5  # np.concatenate([mag_n_5, emission_n_5])
 
     mag_n_1_extended = emission_n_1  # np.concatenate([mag_n_1, emission_n_1])
@@ -2292,6 +2453,12 @@ def create_magnetic_field_scatter_plots():
     mag_ha_core_extended = mag_ha_core_emission  # np.concatenate([mag_ha_core, mag_ha_core_emission])
 
     mag_full_line_extended = mag_full_line_emission  # np.concatenate([mag_full_line, mag_full_line_emission])
+
+    mag_ca_red_extended = mag_ca_red_emission
+
+    mag_ca_far_red_extended = mag_ca_far_red_emission
+
+    mag_ca_fe_extended = mag_ca_fe_emission
 
     if total_categories.dtype.byteorder == '>':
         total_categories = total_categories.byteswap().newbyteorder()
@@ -2308,11 +2475,29 @@ def create_magnetic_field_scatter_plots():
     if mag_full_line.dtype.byteorder == '>':
         mag_full_line = mag_full_line.byteswap().newbyteorder()
 
+    if mag_ca_red.dtype.byteorder == '>':
+        mag_ca_red = mag_ca_red.byteswap().newbyteorder()
+
+    if mag_ca_far_red.dtype.byteorder == '>':
+        mag_ca_far_red = mag_ca_far_red.byteswap().newbyteorder()
+
+    if mag_ca_fe.dtype.byteorder == '>':
+        mag_ca_fe = mag_ca_fe.byteswap().newbyteorder()
+
     if hmi_mag.dtype.byteorder == '>':
         hmi_mag = hmi_mag.byteswap().newbyteorder()
 
     if mag_ha_core_extended.dtype.byteorder == '>':
         mag_ha_core_extended = mag_ha_core_extended.byteswap().newbyteorder()
+
+    if mag_ca_red_extended.dtype.byteorder == '>':
+        mag_ca_red_extended = mag_ca_red_extended.byteswap().newbyteorder()
+
+    if mag_ca_far_red_extended.dtype.byteorder == '>':
+        mag_ca_far_red_extended = mag_ca_far_red_extended.byteswap().newbyteorder()
+
+    if mag_ca_fe_extended.dtype.byteorder == '>':
+        mag_ca_fe_extended = mag_ca_fe_extended.byteswap().newbyteorder()
 
     if mag_n_5_extended.dtype.byteorder == '>':
         mag_n_5_extended = mag_n_5_extended.byteswap().newbyteorder()
@@ -2326,26 +2511,50 @@ def create_magnetic_field_scatter_plots():
     if hmi_mag_extended.dtype.byteorder == '>':
         hmi_mag_extended = hmi_mag_extended.byteswap().newbyteorder()
 
+    if mag_n_5_diff.dtype.byteorder == '>':
+        mag_n_5_diff = mag_n_5_diff.byteswap().newbyteorder()
+
+    if mag_ha_core_diff.dtype.byteorder == '>':
+        mag_ha_core_diff = mag_ha_core_diff.byteswap().newbyteorder()
+
+    if categories_diff.dtype.byteorder == '>':
+        categories_diff = categories_diff.byteswap().newbyteorder()
+
     data = {
         'categories': total_categories,
-        r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)': np.abs(mag_n_1) / 100,
-        r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)': np.abs(mag_n_5) / 100,
-        r'$|$WFA$|$ (H$\alpha$ core)': np.abs(mag_ha_core) / 100,
-        r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)': np.abs(mag_full_line) / 100,
-        r'$|B|$ (HMI)': np.abs(hmi_mag) / 100
+        r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)': np.abs(mag_n_1) / 1e3,
+        r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)': np.abs(mag_n_5) / 1e3,
+        r'$|$WFA$|$ (H$\alpha$ core)': np.abs(mag_ha_core) / 1e3,
+        r'$|$WFA$|$ (H$\alpha$ wing)': np.abs(mag_full_line) / 1e3,
+        r'$|B|$ (HMI)': np.abs(hmi_mag) / 1e3,
+        r'$|$WFA$|$ (Ca $+$0.13 to $+$0.23 $\mathrm{\AA}$)': np.abs(mag_ca_red) / 1e3,
+        r'$|$WFA$|$ (Ca $+$0.23 to $+$0.33 $\mathrm{\AA}$)': np.abs(mag_ca_far_red) / 1e3,
+        r'$|$WFA$|$ (Fe I 8661.7 to 8661.8 $\mathrm{\AA}$)': np.abs(mag_ca_fe) / 1e3
     }
 
     data = pd.DataFrame(data)
 
     data2 = {
-        r'$|$WFA$|$ (H$\alpha$ core)': np.abs(mag_ha_core_extended) / 100,
-        r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)': np.abs(mag_n_5_extended) / 100,
-        r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)': np.abs(mag_n_1_extended) / 100,
-        r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)': np.abs(mag_full_line_extended) / 100,
-        r'$|B|$ (HMI)': np.abs(hmi_mag_extended) / 100
+        r'$|$WFA$|$ (H$\alpha$ core)': np.abs(mag_ha_core_extended) / 1e3,
+        r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)': np.abs(mag_n_5_extended) / 1e3,
+        r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)': np.abs(mag_n_1_extended) / 1e3,
+        r'$|$WFA$|$ (H$\alpha$ wing)': np.abs(mag_full_line_extended) / 1e3,
+        r'$|B|$ (HMI)': np.abs(hmi_mag_extended) / 1e3,
+        r'$|$WFA$|$ (Ca $+$0.13 to $+$0.23 $\mathrm{\AA}$)': np.abs(mag_ca_red_extended) / 1e3,
+        r'$|$WFA$|$ (Ca $+$0.23 to $+$0.33 $\mathrm{\AA}$)': np.abs(mag_ca_far_red_extended) / 1e3,
+        r'$|$WFA$|$ (Fe I 8661.7 to 8661.8 $\mathrm{\AA}$)': np.abs(mag_ca_fe_extended) / 1e3
     }
 
     data2 = pd.DataFrame(data2)
+
+    # data3 = {
+    #     r'categories': categories_diff,
+    #     r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)': np.abs(mag_n_1_diff) / 1e3,
+    #     r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)': np.abs(mag_n_5_diff) / 1e3,
+    #     r'$|$WFA$|$ (H$\alpha$ core)': np.abs(mag_ha_core_diff) / 1e3,
+    # }
+    #
+    # data3 = pd.DataFrame(data3)
 
     # font = {'size': 6}
 
@@ -2369,15 +2578,15 @@ def create_magnetic_field_scatter_plots():
         s=4
     )
 
-    g.ax_marg_x.set_xlim(0, 20)
+    g.ax_marg_x.set_xlim(0, 2)
 
-    g.ax_marg_y.set_ylim(0, 20)
+    g.ax_marg_y.set_ylim(0, 2)
 
     index = np.where(total_categories == 'Umbra')[0]
 
     a, b = np.polyfit(data[r'$|B|$ (HMI)'][index], data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], 1)
 
-    g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='coral', linestyle='--', linewidth=1)
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='coral', linestyle='--', linewidth=1)
 
     r, p = pearsonr(data[r'$|B|$ (HMI)'][index], data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index])
 
@@ -2392,7 +2601,7 @@ def create_magnetic_field_scatter_plots():
 
     a, b = np.polyfit(data[r'$|B|$ (HMI)'][index], data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], 1)
 
-    g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='darkslategray', linestyle='--',
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='darkslategray', linestyle='--',
                     linewidth=1)
 
     r, p = pearsonr(data[r'$|B|$ (HMI)'][index], data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index])
@@ -2408,7 +2617,7 @@ def create_magnetic_field_scatter_plots():
 
     a, b = np.polyfit(data[r'$|B|$ (HMI)'][index], data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], 1)
 
-    g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='dodgerblue', linestyle='--',
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='dodgerblue', linestyle='--',
                     linewidth=1)
 
     r, p = pearsonr(data[r'$|B|$ (HMI)'][index], data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index])
@@ -2421,12 +2630,12 @@ def create_magnetic_field_scatter_plots():
     )
 
     g.ax_joint.plot(
-        np.arange(0, 20), np.arange(0, 20), color='black', linestyle='--', linewidth=1
+        np.arange(0, 2, 0.1), np.arange(0, 2, 0.1), color='black', linestyle='--', linewidth=1
     )
 
-    g.ax_joint.set_xticks([0, 5, 10, 15, 20], ['0', '', '10', '', '20'])
+    g.ax_joint.set_xticks([0, 0.5, 1, 1.5, 2], ['0', '', '1', '', '2'])
 
-    g.ax_joint.set_yticks([0, 5, 10, 15, 20], ['0', '', '10', '', '20'])
+    g.ax_joint.set_yticks([0, 0.5, 1, 1.5, 2], ['0', '', '1', '', '2'])
 
     # g.ax_joint.text(
     #     -0.3, 1.13,
@@ -2442,9 +2651,9 @@ def create_magnetic_field_scatter_plots():
         color='black',
     )
 
-    g.ax_joint.yaxis.set_minor_locator(MultipleLocator(1))
+    g.ax_joint.yaxis.set_minor_locator(MultipleLocator(0.1))
 
-    g.ax_joint.xaxis.set_minor_locator(MultipleLocator(1))
+    g.ax_joint.xaxis.set_minor_locator(MultipleLocator(0.1))
 
     # g._figure.set_size_inches(1.75, 1.4, forward=True)
 
@@ -2476,21 +2685,21 @@ def create_magnetic_field_scatter_plots():
         ax=axins
     )
 
-    axins.yaxis.set_minor_locator(MultipleLocator(1))
+    axins.yaxis.set_minor_locator(MultipleLocator(0.1))
 
-    axins.xaxis.set_minor_locator(MultipleLocator(1))
+    axins.xaxis.set_minor_locator(MultipleLocator(0.1))
 
     axins.set_xlabel('')
 
     axins.set_ylabel('')
 
-    axins.set_xticks([0, 5, 10, 15, 20], ['', '', '', '', ''])
+    axins.set_xticks([0, 0.5, 1, 1.5, 2], ['', '', '', '', ''])
 
-    axins.set_yticks([0, 5, 10, 15, 20], ['', '', '', '', ''])
+    axins.set_yticks([0, 0.5, 1, 1.5, 2], ['', '', '', '', ''])
 
     a, b = np.polyfit(data2[r'$|B|$ (HMI)'], data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'], 1)
 
-    axins.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='rosybrown', linestyle='--',
+    axins.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='rosybrown', linestyle='--',
                     linewidth=1)
 
     r, p = pearsonr(data2[r'$|B|$ (HMI)'], data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'])
@@ -2503,12 +2712,12 @@ def create_magnetic_field_scatter_plots():
     )
 
     axins.plot(
-        np.arange(0, 20), np.arange(0, 20), color='black', linestyle='--', linewidth=1
+        np.arange(0, 2, 0.1), np.arange(0, 2, 0.1), color='black', linestyle='--', linewidth=1
     )
 
-    axins.set_xlim(0, 20)
+    axins.set_xlim(0, 2)
 
-    axins.set_ylim(0, 20)
+    axins.set_ylim(0, 2)
 
     g._figure.subplots_adjust(left=0.15, bottom=0.15, top=0.99, right=0.99)
 
@@ -2535,15 +2744,15 @@ def create_magnetic_field_scatter_plots():
         s=4
     )
 
-    g.ax_marg_x.set_xlim(0, 20)
+    g.ax_marg_x.set_xlim(0, 2)
 
-    g.ax_marg_y.set_ylim(0, 20)
+    g.ax_marg_y.set_ylim(0, 2)
 
     index = np.where(total_categories == 'Umbra')[0]
 
     a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
 
-    g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='coral', linestyle='--', linewidth=1)
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='coral', linestyle='--', linewidth=1)
 
     r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index])
 
@@ -2558,7 +2767,7 @@ def create_magnetic_field_scatter_plots():
 
     a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
 
-    g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='darkslategray', linestyle='--',
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='darkslategray', linestyle='--',
                     linewidth=1)
 
     r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index])
@@ -2574,7 +2783,7 @@ def create_magnetic_field_scatter_plots():
 
     a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
 
-    g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='dodgerblue', linestyle='--',
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='dodgerblue', linestyle='--',
                     linewidth=1)
 
     r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index])
@@ -2587,16 +2796,16 @@ def create_magnetic_field_scatter_plots():
     )
 
     g.ax_joint.plot(
-        np.arange(0, 20), np.arange(0, 20), color='black', linestyle='--', linewidth=1
+        np.arange(0, 2, 0.1), np.arange(0, 2, 0.1), color='black', linestyle='--', linewidth=1
     )
 
-    g.ax_joint.plot(
-        np.arange(0, 20), np.arange(0, 20), color='black', linestyle='--', linewidth=1
-    )
+    # g.ax_joint.plot(
+    #     np.arange(0, 2, 0.1), np.arange(0, 2, 0.1), color='black', linestyle='--', linewidth=1
+    # )
 
-    g.ax_joint.set_xticks([0, 5, 10, 15, 20], ['0', '', '10', '', '20'])
+    g.ax_joint.set_xticks([0, 0.5, 1, 1.5, 2], ['0', '', '1', '', '2'])
 
-    g.ax_joint.set_yticks([0, 5, 10, 15, 20], ['0', '', '10', '', '20'])
+    g.ax_joint.set_yticks([0, 0.5, 1, 1.5, 2], ['0', '', '1', '', '2'])
 
     # g.ax_joint.text(
     #     -0.3, 1.13,
@@ -2612,15 +2821,25 @@ def create_magnetic_field_scatter_plots():
         color='black',
     )
 
-    g.ax_joint.yaxis.set_minor_locator(MultipleLocator(1))
+    g.ax_joint.yaxis.set_minor_locator(MultipleLocator(0.1))
 
-    g.ax_joint.xaxis.set_minor_locator(MultipleLocator(1))
+    g.ax_joint.xaxis.set_minor_locator(MultipleLocator(0.1))
 
     # g._figure.set_size_inches(1.75, 1.4, forward=True)
 
     g._figure.set_size_inches(1.75 * 2, 1.75 * 2, forward=True)
 
     # g._figure.subplots_adjust(left=0.21, bottom=0.23, top=0.99, right=0.99)
+
+    # sns.kdeplot(
+    #     data=data3,
+    #     x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)',
+    #     y=r'$|$WFA$|$ (H$\alpha$ core)',
+    #     # legend=False,
+    #     hue=r'categories',
+    #     levels=1,
+    #     ax=g.ax_joint
+    # )
 
     axins = inset_axes(
         g.ax_joint,
@@ -2642,21 +2861,21 @@ def create_magnetic_field_scatter_plots():
         ax=axins
     )
 
-    axins.yaxis.set_minor_locator(MultipleLocator(1))
+    axins.yaxis.set_minor_locator(MultipleLocator(0.1))
 
-    axins.xaxis.set_minor_locator(MultipleLocator(1))
+    axins.xaxis.set_minor_locator(MultipleLocator(0.1))
 
     axins.set_xlabel('')
 
     axins.set_ylabel('')
 
-    axins.set_xticks([0, 5, 10, 15, 20], ['', '', '', '', ''])
+    axins.set_xticks([0, 0.5, 1, 1.5, 2], ['', '', '', '', ''])
 
-    axins.set_yticks([0, 5, 10, 15, 20], ['', '', '', '', ''])
+    axins.set_yticks([0, 0.5, 1, 1.5, 2], ['', '', '', '', ''])
 
     a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'], data2[r'$|$WFA$|$ (H$\alpha$ core)'], 1)
 
-    axins.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='rosybrown', linestyle='--',
+    axins.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='rosybrown', linestyle='--',
                linewidth=1)
 
     r, p = pearsonr(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'], data2[r'$|$WFA$|$ (H$\alpha$ core)'])
@@ -2669,12 +2888,12 @@ def create_magnetic_field_scatter_plots():
     )
 
     axins.plot(
-        np.arange(0, 20), np.arange(0, 20), color='black', linestyle='--', linewidth=1
+        np.arange(0, 2, 0.1), np.arange(0, 2, 0.1), color='black', linestyle='--', linewidth=1
     )
 
-    axins.set_xlim(0, 20)
+    axins.set_xlim(0, 2)
 
-    axins.set_ylim(0, 20)
+    axins.set_ylim(0, 2)
 
     g._figure.subplots_adjust(left=0.15, bottom=0.15, top=0.99, right=0.99)
 
@@ -2693,7 +2912,7 @@ def create_magnetic_field_scatter_plots():
     g = sns.jointplot(
         data=data,
         x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)',
-        y=r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)',
+        y=r'$|$WFA$|$ (H$\alpha$ wing)',
         hue='categories',
         kind='scatter',
         legend=False,
@@ -2701,17 +2920,17 @@ def create_magnetic_field_scatter_plots():
         s=4
     )
 
-    g.ax_marg_x.set_xlim(0, 20)
+    g.ax_marg_x.set_xlim(0, 2)
 
-    g.ax_marg_y.set_ylim(0, 20)
+    g.ax_marg_y.set_ylim(0, 2)
 
     index = np.where(total_categories == 'Umbra')[0]
 
-    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)'][index], 1)
+    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], 1)
 
-    g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='coral', linestyle='--', linewidth=1)
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='coral', linestyle='--', linewidth=1)
 
-    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)'][index])
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|$WFA$|$ (H$\alpha$ wing)'][index])
 
     g.ax_joint.text(
         0.05, 0.97,
@@ -2722,12 +2941,12 @@ def create_magnetic_field_scatter_plots():
 
     index = np.where(total_categories == 'Penumbra')[0]
 
-    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)'][index], 1)
+    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], 1)
 
-    g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='darkslategray', linestyle='--',
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='darkslategray', linestyle='--',
                     linewidth=1)
 
-    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)'][index])
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|$WFA$|$ (H$\alpha$ wing)'][index])
 
     g.ax_joint.text(
         0.05, 0.87,
@@ -2738,12 +2957,12 @@ def create_magnetic_field_scatter_plots():
 
     index = np.where(total_categories == 'Lightbridge')[0]
 
-    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)'][index], 1)
+    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], 1)
 
-    g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='dodgerblue', linestyle='--',
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='dodgerblue', linestyle='--',
                     linewidth=1)
 
-    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)'][index])
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|$WFA$|$ (H$\alpha$ wing)'][index])
 
     g.ax_joint.text(
         0.05, 0.77,
@@ -2753,12 +2972,12 @@ def create_magnetic_field_scatter_plots():
     )
 
     g.ax_joint.plot(
-        np.arange(0, 20), np.arange(0, 20), color='black', linestyle='--', linewidth=1
+        np.arange(0, 2, 0.1), np.arange(0, 2, 0.1), color='black', linestyle='--', linewidth=1
     )
 
-    g.ax_joint.set_xticks([0, 5, 10, 15, 20], ['0', '', '10', '', '20'])
+    g.ax_joint.set_xticks([0, 0.5, 1, 1.5, 2], ['0', '', '1', '', '2'])
 
-    g.ax_joint.set_yticks([0, 5, 10, 15, 20], ['0', '', '10', '', '20'])
+    g.ax_joint.set_yticks([0, 0.5, 1, 1.5, 2], ['0', '', '1', '', '2'])
 
     # g.ax_joint.text(
     #     -0.3, 1.13,
@@ -2774,9 +2993,9 @@ def create_magnetic_field_scatter_plots():
         color='black',
     )
 
-    g.ax_joint.yaxis.set_minor_locator(MultipleLocator(1))
+    g.ax_joint.yaxis.set_minor_locator(MultipleLocator(0.1))
 
-    g.ax_joint.xaxis.set_minor_locator(MultipleLocator(1))
+    g.ax_joint.xaxis.set_minor_locator(MultipleLocator(0.1))
 
     # g._figure.set_size_inches(1.75, 1.4, forward=True)
 
@@ -2797,31 +3016,31 @@ def create_magnetic_field_scatter_plots():
     sns.scatterplot(
         data=data2,
         x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)',
-        y=r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)',
+        y=r'$|$WFA$|$ (H$\alpha$ wing)',
         legend=False,
         color='rosybrown',
         s=4,
         ax=axins
     )
 
-    axins.yaxis.set_minor_locator(MultipleLocator(1))
+    axins.yaxis.set_minor_locator(MultipleLocator(0.1))
 
-    axins.xaxis.set_minor_locator(MultipleLocator(1))
+    axins.xaxis.set_minor_locator(MultipleLocator(0.1))
 
     axins.set_xlabel('')
 
     axins.set_ylabel('')
 
-    axins.set_xticks([0, 5, 10, 15, 20], ['', '', '', '', ''])
+    axins.set_xticks([0, 0.5, 1, 1.5, 2], ['', '', '', '', ''])
 
-    axins.set_yticks([0, 5, 10, 15, 20], ['', '', '', '', ''])
+    axins.set_yticks([0, 0.5, 1, 1.5, 2], ['', '', '', '', ''])
 
-    a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'], data2[r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)'],1)
+    a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'], data2[r'$|$WFA$|$ (H$\alpha$ wing)'],1)
 
-    axins.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='rosybrown', linestyle='--',
+    axins.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='rosybrown', linestyle='--',
                linewidth=1)
 
-    r, p = pearsonr(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'], data2[r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)'])
+    r, p = pearsonr(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'], data2[r'$|$WFA$|$ (H$\alpha$ wing)'])
 
     g.ax_joint.text(
         0.05, 0.67,
@@ -2831,12 +3050,12 @@ def create_magnetic_field_scatter_plots():
     )
 
     axins.plot(
-        np.arange(0, 20), np.arange(0, 20), color='black', linestyle='--', linewidth=1
+        np.arange(0, 2, 0.1), np.arange(0, 2, 0.1), color='black', linestyle='--', linewidth=1
     )
 
-    axins.set_xlim(0, 20)
+    axins.set_xlim(0, 2)
 
-    axins.set_ylim(0, 20)
+    axins.set_ylim(0, 2)
 
     g._figure.subplots_adjust(left=0.15, bottom=0.15, top=0.99, right=0.99)
 
@@ -2854,7 +3073,7 @@ def create_magnetic_field_scatter_plots():
 
     # g = sns.jointplot(
     #     data=data,
-    #     x=r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)',
+    #     x=r'$|$WFA$|$ (H$\alpha$ wing)',
     #     y=r'$|$WFA$|$ (H$\alpha$ core)',
     #     hue='categories',
     #     kind='scatter',
@@ -2874,17 +3093,17 @@ def create_magnetic_field_scatter_plots():
         s=4
     )
 
-    g.ax_marg_x.set_xlim(0, 20)
+    g.ax_marg_x.set_xlim(0, 2)
 
-    g.ax_marg_y.set_ylim(0, 20)
+    g.ax_marg_y.set_ylim(0, 2)
 
     index = np.where(total_categories == 'Umbra')[0]
 
-    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
 
     a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index], 1)
 
-    g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='coral', linestyle='--', linewidth=1)
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='coral', linestyle='--', linewidth=1)
 
     r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index])
 
@@ -2897,11 +3116,11 @@ def create_magnetic_field_scatter_plots():
 
     index = np.where(total_categories == 'Penumbra')[0]
 
-    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
 
     a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index], 1)
 
-    g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='darkslategray', linestyle='--',
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='darkslategray', linestyle='--',
                     linewidth=1)
 
     r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index])
@@ -2915,11 +3134,11 @@ def create_magnetic_field_scatter_plots():
 
     index = np.where(total_categories == 'Lightbridge')[0]
 
-    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha \pm 1.5 \mathrm{\AA}$)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
 
     a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index], 1)
 
-    g.ax_joint.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='dodgerblue', linestyle='--',
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='dodgerblue', linestyle='--',
                     linewidth=1)
 
     r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index], data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index])
@@ -2932,7 +3151,7 @@ def create_magnetic_field_scatter_plots():
     )
 
     g.ax_joint.plot(
-        np.arange(0, 20), np.arange(0, 20), color='black', linestyle='--', linewidth=1
+        np.arange(0, 2, 0.1), np.arange(0, 2, 0.1), color='black', linestyle='--', linewidth=1
     )
 
     # g.ax_joint.text(
@@ -2949,19 +3168,29 @@ def create_magnetic_field_scatter_plots():
         color='black',
     )
 
-    g.ax_joint.set_xticks([0, 5, 10, 15, 20], ['0', '', '10', '', '20'])
+    g.ax_joint.set_xticks([0, 0.5, 1, 1.5, 2], ['0', '', '1', '', '2'])
 
-    g.ax_joint.set_yticks([0, 5, 10, 15, 20], ['0', '', '10', '', '20'])
+    g.ax_joint.set_yticks([0, 0.5, 1, 1.5, 2], ['0', '', '1', '', '2'])
 
-    g.ax_joint.yaxis.set_minor_locator(MultipleLocator(1))
+    g.ax_joint.yaxis.set_minor_locator(MultipleLocator(0.1))
 
-    g.ax_joint.xaxis.set_minor_locator(MultipleLocator(1))
+    g.ax_joint.xaxis.set_minor_locator(MultipleLocator(0.1))
 
     # g._figure.set_size_inches(1.75, 1.4, forward=True)
 
     g._figure.set_size_inches(1.75 * 2, 1.75 * 2, forward=True)
 
     # g._figure.subplots_adjust(left=0.21, bottom=0.23, top=0.99, right=0.99)
+
+    # sns.kdeplot(
+    #     data=data3,
+    #     x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)',
+    #     y=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)',
+    #     # legend=False,
+    #     hue=r'categories',
+    #     levels=1,
+    #     ax=g.ax_joint
+    # )
 
     axins = inset_axes(
         g.ax_joint,
@@ -2983,24 +3212,24 @@ def create_magnetic_field_scatter_plots():
         ax=axins
     )
 
-    axins.yaxis.set_minor_locator(MultipleLocator(1))
+    axins.yaxis.set_minor_locator(MultipleLocator(0.1))
 
-    axins.xaxis.set_minor_locator(MultipleLocator(1))
+    axins.xaxis.set_minor_locator(MultipleLocator(0.1))
 
     axins.set_xlabel('')
 
     axins.set_ylabel('')
 
-    axins.set_xticks([0, 5, 10, 15, 20], ['', '', '', '', ''])
+    axins.set_xticks([0, 0.5, 1, 1.5, 2], ['', '', '', '', ''])
 
-    axins.set_yticks([0, 5, 10, 15, 20], ['', '', '', '', ''])
+    axins.set_yticks([0, 0.5, 1, 1.5, 2], ['', '', '', '', ''])
 
     a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'], data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'], 1)
     # a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'],
     #                   data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'],
     #                   1)
 
-    axins.plot(np.arange(0, 20), a * np.arange(0, 20) + b, color='rosybrown', linestyle='--',
+    axins.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='rosybrown', linestyle='--',
                linewidth=1)
 
     r, p = pearsonr(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'], data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'])
@@ -3013,17 +3242,1205 @@ def create_magnetic_field_scatter_plots():
     )
 
     axins.plot(
-        np.arange(0, 20), np.arange(0, 20), color='black', linestyle='--', linewidth=1
+        np.arange(0, 2, 0.1), np.arange(0, 2, 0.1), color='black', linestyle='--', linewidth=1
     )
 
-    axins.set_xlim(0, 20)
+    axins.set_xlim(0, 2)
 
-    axins.set_ylim(0, 20)
+    axins.set_ylim(0, 2)
 
     g._figure.subplots_adjust(left=0.15, bottom=0.15, top=0.99, right=0.99)
 
     g._figure.savefig(
         write_path / 'MagFieldScatter_1.pdf',
+        format='pdf',
+        dpi=300
+    )
+
+    '''
+    -----------------------------------------------------------------------------------
+    '''
+
+    # g = sns.jointplot(
+    #     data=data,
+    #     x=r'$|$WFA$|$ (H$\alpha$ wing)',
+    #     y=r'$|$WFA$|$ (H$\alpha$ core)',
+    #     hue='categories',
+    #     kind='scatter',
+    #     legend=False,
+    #     palette=['darkslategray', 'coral', 'dodgerblue'],
+    #     s=1,
+    # )
+
+    g = sns.jointplot(
+        data=data,
+        x=r'$|$WFA$|$ (H$\alpha$ wing)',
+        y=r'$|$WFA$|$ (H$\alpha$ core)',
+        hue='categories',
+        kind='scatter',
+        legend=False,
+        palette=['darkslategray', 'coral', 'dodgerblue'],
+        s=4
+    )
+
+    g.ax_marg_x.set_xlim(0, 2)
+
+    g.ax_marg_y.set_ylim(0, 2)
+
+    index = np.where(total_categories == 'Umbra')[0]
+
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index],
+                      data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='coral', linestyle='--', linewidth=1)
+
+    r, p = pearsonr(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index],
+                    data[r'$|$WFA$|$ (H$\alpha$ core)'][index])
+
+    g.ax_joint.text(
+        0.05, 0.97,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='coral',
+        transform=g.ax_joint.transAxes
+    )
+
+    index = np.where(total_categories == 'Penumbra')[0]
+
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index],
+                      data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='darkslategray', linestyle='--',
+                    linewidth=1)
+
+    r, p = pearsonr(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index],
+                    data[r'$|$WFA$|$ (H$\alpha$ core)'][index])
+
+    g.ax_joint.text(
+        0.05, 0.87,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='darkslategray',
+        transform=g.ax_joint.transAxes
+    )
+
+    index = np.where(total_categories == 'Lightbridge')[0]
+
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index],
+                      data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='dodgerblue', linestyle='--',
+                    linewidth=1)
+
+    r, p = pearsonr(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index],
+                    data[r'$|$WFA$|$ (H$\alpha$ core)'][index])
+
+    g.ax_joint.text(
+        0.05, 0.77,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='dodgerblue',
+        transform=g.ax_joint.transAxes
+    )
+
+    g.ax_joint.plot(
+        np.arange(0, 2, 0.1), np.arange(0, 2, 0.1), color='black', linestyle='--', linewidth=1
+    )
+
+    # g.ax_joint.text(
+    #     -0.3, 1.13,
+    #     '(b)',
+    #     transform=g.ax_joint.transAxes,
+    #     color='black',
+    # )
+
+    g.ax_joint.text(
+        -0.2, 1.13,
+        '(e)',
+        transform=g.ax_joint.transAxes,
+        color='black',
+    )
+
+    g.ax_joint.set_xticks([0, 0.5, 1, 1.5, 2], ['0', '', '1', '', '2'])
+
+    g.ax_joint.set_yticks([0, 0.5, 1, 1.5, 2], ['0', '', '1', '', '2'])
+
+    g.ax_joint.yaxis.set_minor_locator(MultipleLocator(0.1))
+
+    g.ax_joint.xaxis.set_minor_locator(MultipleLocator(0.1))
+
+    # g._figure.set_size_inches(1.75, 1.4, forward=True)
+
+    g._figure.set_size_inches(1.75 * 2, 1.75 * 2, forward=True)
+
+    # g._figure.subplots_adjust(left=0.21, bottom=0.23, top=0.99, right=0.99)
+
+    # sns.kdeplot(
+    #     data=data3,
+    #     x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)',
+    #     y=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)',
+    #     # legend=False,
+    #     hue=r'categories',
+    #     levels=1,
+    #     ax=g.ax_joint
+    # )
+
+    axins = inset_axes(
+        g.ax_joint,
+        width="100%",
+        height="100%",
+        loc="lower left",
+        bbox_to_anchor=(0.7, 0.05, 0.3, 0.3),
+        bbox_transform=g.ax_joint.transAxes,
+        borderpad=0,
+    )
+
+    sns.scatterplot(
+        data=data2,
+        x=r'$|$WFA$|$ (H$\alpha$ wing)',
+        y=r'$|$WFA$|$ (H$\alpha$ core)',
+        legend=False,
+        color='rosybrown',
+        s=4,
+        ax=axins
+    )
+
+    axins.yaxis.set_minor_locator(MultipleLocator(0.1))
+
+    axins.xaxis.set_minor_locator(MultipleLocator(0.1))
+
+    axins.set_xlabel('')
+
+    axins.set_ylabel('')
+
+    axins.set_xticks([0, 0.5, 1, 1.5, 2], ['', '', '', '', ''])
+
+    axins.set_yticks([0, 0.5, 1, 1.5, 2], ['', '', '', '', ''])
+
+    a, b = np.polyfit(data2[r'$|$WFA$|$ (H$\alpha$ wing)'],
+                      data2[r'$|$WFA$|$ (H$\alpha$ core)'], 1)
+    # a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'],
+    #                   data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'],
+    #                   1)
+
+    axins.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='rosybrown', linestyle='--',
+               linewidth=1)
+
+    r, p = pearsonr(data2[r'$|$WFA$|$ (H$\alpha$ wing)'],
+                    data2[r'$|$WFA$|$ (H$\alpha$ core)'])
+
+    g.ax_joint.text(
+        0.05, 0.67,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='rosybrown',
+        transform=g.ax_joint.transAxes
+    )
+
+    axins.plot(
+        np.arange(0, 2, 0.1), np.arange(0, 2, 0.1), color='black', linestyle='--', linewidth=1
+    )
+
+    axins.set_xlim(0, 2)
+
+    axins.set_ylim(0, 2)
+
+    g._figure.subplots_adjust(left=0.15, bottom=0.15, top=0.99, right=0.99)
+
+    g._figure.savefig(
+        write_path / 'MagFieldScatter_4.pdf',
+        format='pdf',
+        dpi=300
+    )
+
+    '''
+    -----------------------------------------------------------------------------------
+    '''
+
+    # g = sns.jointplot(
+    #     data=data,
+    #     x=r'$|$WFA$|$ (H$\alpha$ wing)',
+    #     y=r'$|$WFA$|$ (H$\alpha$ core)',
+    #     hue='categories',
+    #     kind='scatter',
+    #     legend=False,
+    #     palette=['darkslategray', 'coral', 'dodgerblue'],
+    #     s=1,
+    # )
+
+    g = sns.jointplot(
+        data=data,
+        x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)',
+        y=r'$|$WFA$|$ (H$\alpha$ core)',
+        hue='categories',
+        kind='scatter',
+        legend=False,
+        palette=['darkslategray', 'coral', 'dodgerblue'],
+        s=4
+    )
+
+    g.ax_marg_x.set_xlim(0, 2)
+
+    g.ax_marg_y.set_ylim(0, 2)
+
+    index = np.where(total_categories == 'Umbra')[0]
+
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index],
+                      data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='coral', linestyle='--', linewidth=1)
+
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index],
+                    data[r'$|$WFA$|$ (H$\alpha$ core)'][index])
+
+    g.ax_joint.text(
+        0.05, 0.97,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='coral',
+        transform=g.ax_joint.transAxes
+    )
+
+    index = np.where(total_categories == 'Penumbra')[0]
+
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index],
+                      data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='darkslategray', linestyle='--',
+                    linewidth=1)
+
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index],
+                    data[r'$|$WFA$|$ (H$\alpha$ core)'][index])
+
+    g.ax_joint.text(
+        0.05, 0.87,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='darkslategray',
+        transform=g.ax_joint.transAxes
+    )
+
+    index = np.where(total_categories == 'Lightbridge')[0]
+
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index],
+                      data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='dodgerblue', linestyle='--',
+                    linewidth=1)
+
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index],
+                    data[r'$|$WFA$|$ (H$\alpha$ core)'][index])
+
+    g.ax_joint.text(
+        0.05, 0.77,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='dodgerblue',
+        transform=g.ax_joint.transAxes
+    )
+
+    g.ax_joint.plot(
+        np.arange(0, 2, 0.1), np.arange(0, 2, 0.1), color='black', linestyle='--', linewidth=1
+    )
+
+    # g.ax_joint.text(
+    #     -0.3, 1.13,
+    #     '(b)',
+    #     transform=g.ax_joint.transAxes,
+    #     color='black',
+    # )
+
+    g.ax_joint.text(
+        -0.2, 1.13,
+        '(f)',
+        transform=g.ax_joint.transAxes,
+        color='black',
+    )
+
+    g.ax_joint.set_xticks([0, 0.5, 1, 1.5, 2], ['0', '', '1', '', '2'])
+
+    g.ax_joint.set_yticks([0, 0.5, 1, 1.5, 2], ['0', '', '1', '', '2'])
+
+    g.ax_joint.yaxis.set_minor_locator(MultipleLocator(0.1))
+
+    g.ax_joint.xaxis.set_minor_locator(MultipleLocator(0.1))
+
+    # g._figure.set_size_inches(1.75, 1.4, forward=True)
+
+    g._figure.set_size_inches(1.75 * 2, 1.75 * 2, forward=True)
+
+    # g._figure.subplots_adjust(left=0.21, bottom=0.23, top=0.99, right=0.99)
+
+    # sns.kdeplot(
+    #     data=data3,
+    #     x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)',
+    #     y=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)',
+    #     # legend=False,
+    #     hue=r'categories',
+    #     levels=1,
+    #     ax=g.ax_joint
+    # )
+
+    axins = inset_axes(
+        g.ax_joint,
+        width="100%",
+        height="100%",
+        loc="lower left",
+        bbox_to_anchor=(0.7, 0.7, 0.3, 0.3),
+        bbox_transform=g.ax_joint.transAxes,
+        borderpad=0,
+    )
+
+    sns.scatterplot(
+        data=data2,
+        x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)',
+        y=r'$|$WFA$|$ (H$\alpha$ core)',
+        legend=False,
+        color='rosybrown',
+        s=4,
+        ax=axins
+    )
+
+    axins.yaxis.set_minor_locator(MultipleLocator(0.1))
+
+    axins.xaxis.set_minor_locator(MultipleLocator(0.1))
+
+    axins.set_xlabel('')
+
+    axins.set_ylabel('')
+
+    axins.set_xticks([0, 0.5, 1, 1.5, 2], ['', '', '', '', ''])
+
+    axins.set_yticks([0, 0.5, 1, 1.5, 2], ['', '', '', '', ''])
+
+    a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'],
+                      data2[r'$|$WFA$|$ (H$\alpha$ core)'], 1)
+    # a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'],
+    #                   data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'],
+    #                   1)
+
+    axins.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='rosybrown', linestyle='--',
+               linewidth=1)
+
+    r, p = pearsonr(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'],
+                    data2[r'$|$WFA$|$ (H$\alpha$ core)'])
+
+    g.ax_joint.text(
+        0.05, 0.67,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='rosybrown',
+        transform=g.ax_joint.transAxes
+    )
+
+    axins.plot(
+        np.arange(0, 2, 0.1), np.arange(0, 2, 0.1), color='black', linestyle='--', linewidth=1
+    )
+
+    axins.set_xlim(0, 2)
+
+    axins.set_ylim(0, 2)
+
+    g._figure.subplots_adjust(left=0.15, bottom=0.15, top=0.99, right=0.99)
+
+    g._figure.savefig(
+        write_path / 'MagFieldScatter_5.pdf',
+        format='pdf',
+        dpi=300
+    )
+
+    '''
+    -----------------------------------------------------------------------------------
+    '''
+
+    # g = sns.jointplot(
+    #     data=data,
+    #     x=r'$|$WFA$|$ (H$\alpha$ wing)',
+    #     y=r'$|$WFA$|$ (H$\alpha$ core)',
+    #     hue='categories',
+    #     kind='scatter',
+    #     legend=False,
+    #     palette=['darkslategray', 'coral', 'dodgerblue'],
+    #     s=1,
+    # )
+
+    g = sns.jointplot(
+        data=data,
+        x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)',
+        y=r'$|$WFA$|$ (H$\alpha$ wing)',
+        hue='categories',
+        kind='scatter',
+        legend=False,
+        palette=['darkslategray', 'coral', 'dodgerblue'],
+        s=4
+    )
+
+    g.ax_marg_x.set_xlim(0, 2)
+
+    g.ax_marg_y.set_ylim(0, 2)
+
+    index = np.where(total_categories == 'Umbra')[0]
+
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index],
+                      data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], 1)
+
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='coral', linestyle='--', linewidth=1)
+
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index],
+                    data[r'$|$WFA$|$ (H$\alpha$ wing)'][index])
+
+    g.ax_joint.text(
+        0.05, 0.97,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='coral',
+        transform=g.ax_joint.transAxes
+    )
+
+    index = np.where(total_categories == 'Penumbra')[0]
+
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index],
+                      data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], 1)
+
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='darkslategray', linestyle='--',
+                    linewidth=1)
+
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index],
+                    data[r'$|$WFA$|$ (H$\alpha$ wing)'][index])
+
+    g.ax_joint.text(
+        0.05, 0.87,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='darkslategray',
+        transform=g.ax_joint.transAxes
+    )
+
+    index = np.where(total_categories == 'Lightbridge')[0]
+
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index],
+                      data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], 1)
+
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='dodgerblue', linestyle='--',
+                    linewidth=1)
+
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index],
+                    data[r'$|$WFA$|$ (H$\alpha$ wing)'][index])
+
+    g.ax_joint.text(
+        0.05, 0.77,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='dodgerblue',
+        transform=g.ax_joint.transAxes
+    )
+
+    g.ax_joint.plot(
+        np.arange(0, 2, 0.1), np.arange(0, 2, 0.1), color='black', linestyle='--', linewidth=1
+    )
+
+    # g.ax_joint.text(
+    #     -0.3, 1.13,
+    #     '(b)',
+    #     transform=g.ax_joint.transAxes,
+    #     color='black',
+    # )
+
+    g.ax_joint.text(
+        -0.2, 1.13,
+        '(g)',
+        transform=g.ax_joint.transAxes,
+        color='black',
+    )
+
+    g.ax_joint.set_xticks([0, 0.5, 1, 1.5, 2], ['0', '', '1', '', '2'])
+
+    g.ax_joint.set_yticks([0, 0.5, 1, 1.5, 2], ['0', '', '1', '', '2'])
+
+    g.ax_joint.yaxis.set_minor_locator(MultipleLocator(0.1))
+
+    g.ax_joint.xaxis.set_minor_locator(MultipleLocator(0.1))
+
+    # g._figure.set_size_inches(1.75, 1.4, forward=True)
+
+    g._figure.set_size_inches(1.75 * 2, 1.75 * 2, forward=True)
+
+    # g._figure.subplots_adjust(left=0.21, bottom=0.23, top=0.99, right=0.99)
+
+    # sns.kdeplot(
+    #     data=data3,
+    #     x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)',
+    #     y=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)',
+    #     # legend=False,
+    #     hue=r'categories',
+    #     levels=1,
+    #     ax=g.ax_joint
+    # )
+
+    axins = inset_axes(
+        g.ax_joint,
+        width="100%",
+        height="100%",
+        loc="lower left",
+        bbox_to_anchor=(0.7, 0.05, 0.3, 0.3),
+        bbox_transform=g.ax_joint.transAxes,
+        borderpad=0,
+    )
+
+    sns.scatterplot(
+        data=data2,
+        x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)',
+        y=r'$|$WFA$|$ (H$\alpha$ wing)',
+        legend=False,
+        color='rosybrown',
+        s=4,
+        ax=axins
+    )
+
+    axins.yaxis.set_minor_locator(MultipleLocator(0.1))
+
+    axins.xaxis.set_minor_locator(MultipleLocator(0.1))
+
+    axins.set_xlabel('')
+
+    axins.set_ylabel('')
+
+    axins.set_xticks([0, 0.5, 1, 1.5, 2], ['', '', '', '', ''])
+
+    axins.set_yticks([0, 0.5, 1, 1.5, 2], ['', '', '', '', ''])
+
+    a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'],
+                      data2[r'$|$WFA$|$ (H$\alpha$ wing)'], 1)
+    # a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'],
+    #                   data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'],
+    #                   1)
+
+    axins.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='rosybrown', linestyle='--',
+               linewidth=1)
+
+    r, p = pearsonr(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'],
+                    data2[r'$|$WFA$|$ (H$\alpha$ wing)'])
+
+    g.ax_joint.text(
+        0.05, 0.67,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='rosybrown',
+        transform=g.ax_joint.transAxes
+    )
+
+    axins.plot(
+        np.arange(0, 2, 0.1), np.arange(0, 2, 0.1), color='black', linestyle='--', linewidth=1
+    )
+
+    axins.set_xlim(0, 2)
+
+    axins.set_ylim(0, 2)
+
+    g._figure.subplots_adjust(left=0.15, bottom=0.15, top=0.99, right=0.99)
+
+    g._figure.savefig(
+        write_path / 'MagFieldScatter_6.pdf',
+        format='pdf',
+        dpi=300
+    )
+
+    '''
+    -----------------------------------------------------------------------------------
+    '''
+
+    # g = sns.jointplot(
+    #     data=data,
+    #     x=r'$|$WFA$|$ (H$\alpha$ wing)',
+    #     y=r'$|$WFA$|$ (H$\alpha$ core)',
+    #     hue='categories',
+    #     kind='scatter',
+    #     legend=False,
+    #     palette=['darkslategray', 'coral', 'dodgerblue'],
+    #     s=1,
+    # )
+
+    g = sns.jointplot(
+        data=data,
+        x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)',
+        y=r'$|$WFA$|$ (Ca $+$0.13 to $+$0.23 $\mathrm{\AA}$)',
+        hue='categories',
+        kind='scatter',
+        legend=False,
+        palette=['darkslategray', 'coral', 'dodgerblue'],
+        s=4
+    )
+
+    g.ax_marg_x.set_xlim(0, 3)
+
+    g.ax_marg_y.set_ylim(0, 3)
+
+    index = np.where(total_categories == 'Umbra')[0]
+
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index],
+                      data[r'$|$WFA$|$ (Ca $+$0.13 to $+$0.23 $\mathrm{\AA}$)'][index], 1)
+
+    g.ax_joint.plot(np.arange(0, 3, 0.1), a * np.arange(0, 3, 0.1) + b, color='coral', linestyle='--', linewidth=1)
+
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index],
+                    data[r'$|$WFA$|$ (Ca $+$0.13 to $+$0.23 $\mathrm{\AA}$)'][index])
+
+    g.ax_joint.text(
+        0.05, 0.97,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='coral',
+        transform=g.ax_joint.transAxes
+    )
+
+    index = np.where(total_categories == 'Penumbra')[0]
+
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index],
+                      data[r'$|$WFA$|$ (Ca $+$0.13 to $+$0.23 $\mathrm{\AA}$)'][index], 1)
+
+    g.ax_joint.plot(np.arange(0, 3, 0.1), a * np.arange(0, 3, 0.1) + b, color='darkslategray', linestyle='--',
+                    linewidth=1)
+
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index],
+                    data[r'$|$WFA$|$ (Ca $+$0.13 to $+$0.23 $\mathrm{\AA}$)'][index])
+
+    g.ax_joint.text(
+        0.05, 0.87,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='darkslategray',
+        transform=g.ax_joint.transAxes
+    )
+
+    index = np.where(total_categories == 'Lightbridge')[0]
+
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index],
+                      data[r'$|$WFA$|$ (Ca $+$0.13 to $+$0.23 $\mathrm{\AA}$)'][index], 1)
+
+    g.ax_joint.plot(np.arange(0, 3, 0.1), a * np.arange(0, 3, 0.1) + b, color='dodgerblue', linestyle='--',
+                    linewidth=1)
+
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'][index],
+                    data[r'$|$WFA$|$ (Ca $+$0.13 to $+$0.23 $\mathrm{\AA}$)'][index])
+
+    g.ax_joint.text(
+        0.05, 0.77,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='dodgerblue',
+        transform=g.ax_joint.transAxes
+    )
+
+    g.ax_joint.plot(
+        np.arange(0, 3, 0.1), np.arange(0, 3, 0.1), color='black', linestyle='--', linewidth=1
+    )
+
+    # g.ax_joint.text(
+    #     -0.3, 1.13,
+    #     '(b)',
+    #     transform=g.ax_joint.transAxes,
+    #     color='black',
+    # )
+
+    g.ax_joint.text(
+        -0.2, 1.13,
+        '(b)',
+        transform=g.ax_joint.transAxes,
+        color='black',
+    )
+
+    g.ax_joint.set_xticks([0, 0.5, 1, 1.5, 2, 2.5, 3], ['0', '', '1', '', '2', '', '3'])
+
+    g.ax_joint.set_yticks([0, 0.5, 1, 1.5, 2, 2.5, 3], ['0', '', '1', '', '2', '', '3'])
+
+    g.ax_joint.yaxis.set_minor_locator(MultipleLocator(0.1))
+
+    g.ax_joint.xaxis.set_minor_locator(MultipleLocator(0.1))
+
+    # g._figure.set_size_inches(1.75, 1.4, forward=True)
+
+    g._figure.set_size_inches(1.75 * 2, 1.75 * 2, forward=True)
+
+    # g._figure.subplots_adjust(left=0.21, bottom=0.23, top=0.99, right=0.99)
+
+    # sns.kdeplot(
+    #     data=data3,
+    #     x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)',
+    #     y=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)',
+    #     # legend=False,
+    #     hue=r'categories',
+    #     levels=1,
+    #     ax=g.ax_joint
+    # )
+
+    axins = inset_axes(
+        g.ax_joint,
+        width="100%",
+        height="100%",
+        loc="lower left",
+        bbox_to_anchor=(0.7, 0.05, 0.3, 0.3),
+        bbox_transform=g.ax_joint.transAxes,
+        borderpad=0,
+    )
+
+    sns.scatterplot(
+        data=data2,
+        x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)',
+        y=r'$|$WFA$|$ (Ca $+$0.13 to $+$0.23 $\mathrm{\AA}$)',
+        legend=False,
+        color='rosybrown',
+        s=4,
+        ax=axins
+    )
+
+    axins.yaxis.set_minor_locator(MultipleLocator(0.1))
+
+    axins.xaxis.set_minor_locator(MultipleLocator(0.1))
+
+    axins.set_xlabel('')
+
+    axins.set_ylabel('')
+
+    axins.set_xticks([0, 0.5, 1, 1.5, 2, 2.5, 3], ['', '', '', '', '', '', ''])
+
+    axins.set_yticks([0, 0.5, 1, 1.5, 2, 2.5, 3], ['', '', '', '', '', '', ''])
+
+    a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'],
+                      data2[r'$|$WFA$|$ (Ca $+$0.13 to $+$0.23 $\mathrm{\AA}$)'], 1)
+    # a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'],
+    #                   data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'],
+    #                   1)
+
+    axins.plot(np.arange(0, 3, 0.1), a * np.arange(0, 3, 0.1) + b, color='rosybrown', linestyle='--',
+               linewidth=1)
+
+    r, p = pearsonr(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'],
+                    data2[r'$|$WFA$|$ (Ca $+$0.13 to $+$0.23 $\mathrm{\AA}$)'])
+
+    g.ax_joint.text(
+        0.05, 0.67,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='rosybrown',
+        transform=g.ax_joint.transAxes
+    )
+
+    axins.plot(
+        np.arange(0, 3, 0.1), np.arange(0, 3, 0.1), color='black', linestyle='--', linewidth=1
+    )
+
+    axins.set_xlim(0, 3)
+
+    axins.set_ylim(0, 3)
+
+    g._figure.subplots_adjust(left=0.15, bottom=0.15, top=0.99, right=0.99)
+
+    g._figure.savefig(
+        write_path / 'MagFieldScatter_7.pdf',
+        format='pdf',
+        dpi=300
+    )
+
+    '''
+    -----------------------------------------------------------------------------------
+    '''
+
+    # g = sns.jointplot(
+    #     data=data,
+    #     x=r'$|$WFA$|$ (H$\alpha$ wing)',
+    #     y=r'$|$WFA$|$ (H$\alpha$ core)',
+    #     hue='categories',
+    #     kind='scatter',
+    #     legend=False,
+    #     palette=['darkslategray', 'coral', 'dodgerblue'],
+    #     s=1,
+    # )
+
+    g = sns.jointplot(
+        data=data,
+        x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)',
+        y=r'$|$WFA$|$ (Ca $+$0.23 to $+$0.33 $\mathrm{\AA}$)',
+        hue='categories',
+        kind='scatter',
+        legend=False,
+        palette=['darkslategray', 'coral', 'dodgerblue'],
+        s=4
+    )
+
+    g.ax_marg_x.set_xlim(0, 2)
+
+    g.ax_marg_y.set_ylim(0, 2)
+
+    index = np.where(total_categories == 'Umbra')[0]
+
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index],
+                      data[r'$|$WFA$|$ (Ca $+$0.23 to $+$0.33 $\mathrm{\AA}$)'][index], 1)
+
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='coral', linestyle='--', linewidth=1)
+
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index],
+                    data[r'$|$WFA$|$ (Ca $+$0.23 to $+$0.33 $\mathrm{\AA}$)'][index])
+
+    g.ax_joint.text(
+        0.05, 0.97,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='coral',
+        transform=g.ax_joint.transAxes
+    )
+
+    index = np.where(total_categories == 'Penumbra')[0]
+
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index],
+                      data[r'$|$WFA$|$ (Ca $+$0.23 to $+$0.33 $\mathrm{\AA}$)'][index], 1)
+
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='darkslategray', linestyle='--',
+                    linewidth=1)
+
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index],
+                    data[r'$|$WFA$|$ (Ca $+$0.23 to $+$0.33 $\mathrm{\AA}$)'][index])
+
+    g.ax_joint.text(
+        0.05, 0.87,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='darkslategray',
+        transform=g.ax_joint.transAxes
+    )
+
+    index = np.where(total_categories == 'Lightbridge')[0]
+
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index],
+                      data[r'$|$WFA$|$ (Ca $+$0.23 to $+$0.33 $\mathrm{\AA}$)'][index], 1)
+
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='dodgerblue', linestyle='--',
+                    linewidth=1)
+
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index],
+                    data[r'$|$WFA$|$ (Ca $+$0.23 to $+$0.33 $\mathrm{\AA}$)'][index])
+
+    g.ax_joint.text(
+        0.05, 0.77,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='dodgerblue',
+        transform=g.ax_joint.transAxes
+    )
+
+    g.ax_joint.plot(
+        np.arange(0, 2, 0.1), np.arange(0, 2, 0.1), color='black', linestyle='--', linewidth=1
+    )
+
+    # g.ax_joint.text(
+    #     -0.3, 1.13,
+    #     '(b)',
+    #     transform=g.ax_joint.transAxes,
+    #     color='black',
+    # )
+
+    g.ax_joint.text(
+        -0.2, 1.13,
+        '(b)',
+        transform=g.ax_joint.transAxes,
+        color='black',
+    )
+
+    g.ax_joint.set_xticks([0, 0.5, 1, 1.5, 2], ['0', '', '1', '', '2'])
+
+    g.ax_joint.set_yticks([0, 0.5, 1, 1.5, 2], ['0', '', '1', '', '2'])
+
+    g.ax_joint.yaxis.set_minor_locator(MultipleLocator(0.1))
+
+    g.ax_joint.xaxis.set_minor_locator(MultipleLocator(0.1))
+
+    # g._figure.set_size_inches(1.75, 1.4, forward=True)
+
+    g._figure.set_size_inches(1.75 * 2, 1.75 * 2, forward=True)
+
+    # g._figure.subplots_adjust(left=0.21, bottom=0.23, top=0.99, right=0.99)
+
+    # sns.kdeplot(
+    #     data=data3,
+    #     x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)',
+    #     y=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)',
+    #     # legend=False,
+    #     hue=r'categories',
+    #     levels=1,
+    #     ax=g.ax_joint
+    # )
+
+    axins = inset_axes(
+        g.ax_joint,
+        width="100%",
+        height="100%",
+        loc="lower left",
+        bbox_to_anchor=(0.7, 0.05, 0.3, 0.3),
+        bbox_transform=g.ax_joint.transAxes,
+        borderpad=0,
+    )
+
+    sns.scatterplot(
+        data=data2,
+        x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)',
+        y=r'$|$WFA$|$ (Ca $+$0.23 to $+$0.33 $\mathrm{\AA}$)',
+        legend=False,
+        color='rosybrown',
+        s=4,
+        ax=axins
+    )
+
+    axins.yaxis.set_minor_locator(MultipleLocator(0.1))
+
+    axins.xaxis.set_minor_locator(MultipleLocator(0.1))
+
+    axins.set_xlabel('')
+
+    axins.set_ylabel('')
+
+    axins.set_xticks([0, 0.5, 1, 1.5, 2], ['', '', '', '', ''])
+
+    axins.set_yticks([0, 0.5, 1, 1.5, 2], ['', '', '', '', ''])
+
+    a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'],
+                      data2[r'$|$WFA$|$ (Ca $+$0.23 to $+$0.33 $\mathrm{\AA}$)'], 1)
+    # a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'],
+    #                   data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'],
+    #                   1)
+
+    axins.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='rosybrown', linestyle='--',
+               linewidth=1)
+
+    r, p = pearsonr(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'],
+                    data2[r'$|$WFA$|$ (Ca $+$0.23 to $+$0.33 $\mathrm{\AA}$)'])
+
+    g.ax_joint.text(
+        0.05, 0.67,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='rosybrown',
+        transform=g.ax_joint.transAxes
+    )
+
+    axins.plot(
+        np.arange(0, 2, 0.1), np.arange(0, 2, 0.1), color='black', linestyle='--', linewidth=1
+    )
+
+    axins.set_xlim(0, 2)
+
+    axins.set_ylim(0, 2)
+
+    g._figure.subplots_adjust(left=0.15, bottom=0.15, top=0.99, right=0.99)
+
+    g._figure.savefig(
+        write_path / 'MagFieldScatter_8.pdf',
+        format='pdf',
+        dpi=300
+    )
+
+    '''
+    -----------------------------------------------------------------------------------
+    '''
+
+    # g = sns.jointplot(
+    #     data=data,
+    #     x=r'$|$WFA$|$ (H$\alpha$ wing)',
+    #     y=r'$|$WFA$|$ (H$\alpha$ core)',
+    #     hue='categories',
+    #     kind='scatter',
+    #     legend=False,
+    #     palette=['darkslategray', 'coral', 'dodgerblue'],
+    #     s=1,
+    # )
+
+    g = sns.jointplot(
+        data=data,
+        x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)',
+        y=r'$|$WFA$|$ (Fe I 8661.7 to 8661.8 $\mathrm{\AA}$)',
+        hue='categories',
+        kind='scatter',
+        legend=False,
+        palette=['darkslategray', 'coral', 'dodgerblue'],
+        s=4
+    )
+
+    g.ax_marg_x.set_xlim(0, 2)
+
+    g.ax_marg_y.set_ylim(0, 2)
+
+    index = np.where(total_categories == 'Umbra')[0]
+
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index],
+                      data[r'$|$WFA$|$ (Fe I 8661.7 to 8661.8 $\mathrm{\AA}$)'][index], 1)
+
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='coral', linestyle='--', linewidth=1)
+
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index],
+                    data[r'$|$WFA$|$ (Fe I 8661.7 to 8661.8 $\mathrm{\AA}$)'][index])
+
+    g.ax_joint.text(
+        0.05, 0.97,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='coral',
+        transform=g.ax_joint.transAxes
+    )
+
+    index = np.where(total_categories == 'Penumbra')[0]
+
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index],
+                      data[r'$|$WFA$|$ (Fe I 8661.7 to 8661.8 $\mathrm{\AA}$)'][index], 1)
+
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='darkslategray', linestyle='--',
+                    linewidth=1)
+
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index],
+                    data[r'$|$WFA$|$ (Fe I 8661.7 to 8661.8 $\mathrm{\AA}$)'][index])
+
+    g.ax_joint.text(
+        0.05, 0.87,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='darkslategray',
+        transform=g.ax_joint.transAxes
+    )
+
+    index = np.where(total_categories == 'Lightbridge')[0]
+
+    # a, b = np.polyfit(data[r'$|$WFA$|$ (H$\alpha$ wing)'][index], data[r'$|$WFA$|$ (H$\alpha$ core)'][index], 1)
+
+    a, b = np.polyfit(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index],
+                      data[r'$|$WFA$|$ (Fe I 8661.7 to 8661.8 $\mathrm{\AA}$)'][index], 1)
+
+    g.ax_joint.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='dodgerblue', linestyle='--',
+                    linewidth=1)
+
+    r, p = pearsonr(data[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'][index],
+                    data[r'$|$WFA$|$ (Fe I 8661.7 to 8661.8 $\mathrm{\AA}$)'][index])
+
+    g.ax_joint.text(
+        0.05, 0.77,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='dodgerblue',
+        transform=g.ax_joint.transAxes
+    )
+
+    g.ax_joint.plot(
+        np.arange(0, 2, 0.1), np.arange(0, 2, 0.1), color='black', linestyle='--', linewidth=1
+    )
+
+    # g.ax_joint.text(
+    #     -0.3, 1.13,
+    #     '(b)',
+    #     transform=g.ax_joint.transAxes,
+    #     color='black',
+    # )
+
+    g.ax_joint.text(
+        -0.2, 1.13,
+        '(b)',
+        transform=g.ax_joint.transAxes,
+        color='black',
+    )
+
+    g.ax_joint.set_xticks([0, 0.5, 1, 1.5, 2], ['0', '', '1', '', '2'])
+
+    g.ax_joint.set_yticks([0, 0.5, 1, 1.5, 2], ['0', '', '1', '', '2'])
+
+    g.ax_joint.yaxis.set_minor_locator(MultipleLocator(0.1))
+
+    g.ax_joint.xaxis.set_minor_locator(MultipleLocator(0.1))
+
+    # g._figure.set_size_inches(1.75, 1.4, forward=True)
+
+    g._figure.set_size_inches(1.75 * 2, 1.75 * 2, forward=True)
+
+    # g._figure.subplots_adjust(left=0.21, bottom=0.23, top=0.99, right=0.99)
+
+    # sns.kdeplot(
+    #     data=data3,
+    #     x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)',
+    #     y=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)',
+    #     # legend=False,
+    #     hue=r'categories',
+    #     levels=1,
+    #     ax=g.ax_joint
+    # )
+
+    axins = inset_axes(
+        g.ax_joint,
+        width="100%",
+        height="100%",
+        loc="lower left",
+        bbox_to_anchor=(0.7, 0.05, 0.3, 0.3),
+        bbox_transform=g.ax_joint.transAxes,
+        borderpad=0,
+    )
+
+    sns.scatterplot(
+        data=data2,
+        x=r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)',
+        y=r'$|$WFA$|$ (Fe I 8661.7 to 8661.8 $\mathrm{\AA}$)',
+        legend=False,
+        color='rosybrown',
+        s=4,
+        ax=axins
+    )
+
+    axins.yaxis.set_minor_locator(MultipleLocator(0.1))
+
+    axins.xaxis.set_minor_locator(MultipleLocator(0.1))
+
+    axins.set_xlabel('')
+
+    axins.set_ylabel('')
+
+    axins.set_xticks([0, 0.5, 1, 1.5, 2], ['', '', '', '', ''])
+
+    axins.set_yticks([0, 0.5, 1, 1.5, 2], ['', '', '', '', ''])
+
+    a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'],
+                      data2[r'$|$WFA$|$ (Fe I 8661.7 to 8661.8 $\mathrm{\AA}$)'], 1)
+    # a, b = np.polyfit(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'],
+    #                   data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$4.5)'],
+    #                   1)
+
+    axins.plot(np.arange(0, 2, 0.1), a * np.arange(0, 2, 0.1) + b, color='rosybrown', linestyle='--',
+               linewidth=1)
+
+    r, p = pearsonr(data2[r'$|B_{\mathrm{LOS}}|$ ($\log \tau_{500}$ = $-$1)'],
+                    data2[r'$|$WFA$|$ (Fe I 8661.7 to 8661.8 $\mathrm{\AA}$)'])
+
+    g.ax_joint.text(
+        0.05, 0.67,
+        r'$m,r,p={},{},{}$'.format(np.round(a, 2), np.round(r, 2), np.round(p, 2)),
+        color='rosybrown',
+        transform=g.ax_joint.transAxes
+    )
+
+    axins.plot(
+        np.arange(0, 2, 0.1), np.arange(0, 2, 0.1), color='black', linestyle='--', linewidth=1
+    )
+
+    axins.set_xlim(0, 2)
+
+    axins.set_ylim(0, 2)
+
+    g._figure.subplots_adjust(left=0.15, bottom=0.15, top=0.99, right=0.99)
+
+    g._figure.savefig(
+        write_path / 'MagFieldScatter_9.pdf',
         format='pdf',
         dpi=300
     )
@@ -3707,7 +5124,7 @@ def make_line_cuts(l1x, l1y, l2x, l2y, line_colors):
 
     wfa_base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/')
 
-    mag_full_line, _ = sunpy.io.read_file(wfa_base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_magha_full_line_spatial.fits')[0]
+    mag_full_line, _ = sunpy.io.read_file(wfa_base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_magha_wing_spatial.fits')[0]
 
     mag_ha_core, _ = sunpy.io.read_file(wfa_base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_magha_core_spatial.fits')[0]
 
@@ -3859,10 +5276,606 @@ def make_line_cuts(l1x, l1y, l2x, l2y, line_colors):
     plt.savefig(write_path / 'Linecuts.pdf', format='pdf', dpi=300)
 
 
+def make_halpha_context_image(
+    datestring='20230527', timestring='074428',
+    aia_file='hmi.Ic_720s.20230527_044800_TAI.3.magnetogram.fits',
+    angle=-19,
+    offset_x=94, offset_y=62,
+    init_x=-20,
+    init_y=-260,
+    y1=15,
+    y2=0,
+    x1=3,
+    x2=-3
+):
+
+    write_path = Path('/home/harsh/CourseworkRepo/KTTAnalysis/figures/')
+
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+
+    level4path = base_path / datestring / 'Level-4-alt-alt'
+
+    file1 = h5py.File(level4path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc'.format(datestring, timestring), 'r')
+
+    aligned_halpha = level4path / 'aligned_halpha'
+
+    aia_data, aia_header = sunpy.io.read_file(aligned_halpha / 'Halpha_reference_image_HA_20230527T024751.fits_20230527_074428.fits')[0]
+
+    aia_map = sunpy.map.Map(aia_data, aia_header)
+
+    spread = 100
+
+    init = (init_x - spread / 2, init_y - spread / 2)
+
+    final = (init_x + spread / 2, init_y + spread / 2)
+
+    y0 = init[1] * u.arcsec
+
+    x0 = init[0] * u.arcsec
+
+    xf = final[0] * u.arcsec
+
+    yf = final[1] * u.arcsec
+
+    bottom_left1 = astropy.coordinates.SkyCoord(
+        x0, y0, frame=aia_map.coordinate_frame
+    )
+
+    top_right1 = astropy.coordinates.SkyCoord(
+        xf, yf, frame=aia_map.coordinate_frame
+    )
+
+    submap_registered_aia_map = aia_map.submap(
+        bottom_left=bottom_left1,
+        top_right=top_right1
+    )
+
+    rotated_submap_registered_aia_map = submap_registered_aia_map.rotate(
+        angle=angle * u.deg,
+        missing=0
+    )
+
+    rotated_data = rotated_submap_registered_aia_map.data
+
+    yy1 = offset_y + y1
+    yy2 = file1['profiles'].shape[1] + offset_y + y2
+    xx1 = offset_x + x1
+    xx2 = file1['profiles'].shape[2] + offset_x + x2
+
+    bl = rotated_submap_registered_aia_map.pixel_to_world(xx1 * u.pixel, yy1 * u.pixel)
+    br = rotated_submap_registered_aia_map.pixel_to_world(xx2 * u.pixel, yy1 * u.pixel)
+    tr = rotated_submap_registered_aia_map.pixel_to_world(xx2 * u.pixel, yy2 * u.pixel)
+    tl = rotated_submap_registered_aia_map.pixel_to_world(xx1 * u.pixel, yy2 * u.pixel)
+
+    ny0 = -318 * u.arcsec
+
+    nx0 = -193 * u.arcsec
+
+    nxf = 60 * u.arcsec
+
+    nyf = -141 * u.arcsec
+
+    nbottom_left1 = astropy.coordinates.SkyCoord(
+        nx0, ny0, frame=aia_map.coordinate_frame
+    )
+
+    ntop_right1 = astropy.coordinates.SkyCoord(
+        nxf, nyf, frame=aia_map.coordinate_frame
+    )
+
+    nsubmap_registered_aia_map = aia_map.submap(
+        bottom_left=nbottom_left1,
+        top_right=ntop_right1
+    )
+
+    dd = nsubmap_registered_aia_map.data
+
+    extent = [
+        -(nsubmap_registered_aia_map.meta['crpix1'] - 1) * 0.6,
+        -(nsubmap_registered_aia_map.meta['crpix1'] - 1) * 0.6 + dd.shape[1] * 0.6,
+        -(nsubmap_registered_aia_map.meta['crpix2'] - 1) * 0.6,
+        -(nsubmap_registered_aia_map.meta['crpix2'] - 1) * 0.6 + dd.shape[0] * 0.6
+    ]
+
+    font = {'size': 6}
+
+    matplotlib.rc('font', **font)
+
+    fig, axs = plt.subplots(1, 1, figsize=(3.5, 2.33))
+
+    vmin = 0.21
+    vmax = 0.61
+
+    im = axs.imshow(nsubmap_registered_aia_map.data, cmap='inferno', origin='lower', extent=extent, vmin=vmin, vmax=vmax)
+
+    axs.plot([bl.Tx.value, br.Tx.value, tr.Tx.value, tl.Tx.value, bl.Tx.value], [bl.Ty.value, br.Ty.value, tr.Ty.value, tl.Ty.value, bl.Ty.value], color='black', linewidth=0.5)
+
+    axins = inset_axes(
+        axs,
+        width="100%",
+        height="100%",
+        loc="upper right",
+        bbox_to_anchor=(1.02, 0.0, 0.05, 1),
+        bbox_transform=axs.transAxes,
+        borderpad=0,
+    )
+
+    ticks = [0.2, 0.3, 0.4, 0.5, 0.6]
+
+    cbar = fig.colorbar(im, cax=axins, ticks=ticks, orientation='vertical')
+
+    cbar.ax.set_yticklabels(ticks)
+
+    axs.set_xlabel('Solar X [arcsec]')
+
+    axs.set_ylabel('Solar Y [arcsec]')
+
+    axs.text(
+        0.15, 1.05,
+        'NOAA 13315 at 2023-05-27 02:48:00 UT',
+        transform=axs.transAxes
+    )
+
+    axs.set_yticks([-150, -200, -250, -300], [-150, -200, -250, -300])
+
+    axs.set_xticks([-150, -100, -50, 0, 50], [-150, -100, -50, 0, 50])
+
+    axs.xaxis.set_minor_locator(MultipleLocator(10))
+
+    axs.yaxis.set_minor_locator(MultipleLocator(10))
+
+    axs.grid(linewidth=0.25)
+
+    plt.subplots_adjust(left=0.13, bottom=0.05, right=0.87, top=1, wspace=0.0, hspace=0.0)
+
+    plt.savefig(write_path / 'Halpha_context_image.pdf', format='pdf', dpi=300)
+
+
+def make_context_image(
+    datestring='20230527', timestring='074428',
+    aligned_aia_file=None,
+    angle=-19,
+    offset_x=94, offset_y=62,
+    init_x=-20,
+    init_y=-260,
+    y1=15,
+    y2=0,
+    x1=3,
+    x2=-3
+):
+
+    write_path = Path('/home/harsh/CourseworkRepo/KTTAnalysis/figures/')
+
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes')
+
+    level4path = base_path / datestring / 'Level-4-alt-alt'
+
+    file1 = h5py.File(level4path / 'aligned_Ca_Ha_stic_profiles_{}_{}.nc'.format(datestring, timestring), 'r')
+
+    aia_data, aia_header = sunpy.io.read_file(aligned_aia_file)[1]
+
+    aia_map = sunpy.map.Map(aia_data, aia_header)
+
+    aia_map = register(aia_map)
+
+    spread = 100
+
+    init = (init_x - spread / 2, init_y - spread / 2)
+
+    final = (init_x + spread / 2, init_y + spread / 2)
+
+    y0 = init[1] * u.arcsec
+
+    x0 = init[0] * u.arcsec
+
+    xf = final[0] * u.arcsec
+
+    yf = final[1] * u.arcsec
+
+    bottom_left1 = astropy.coordinates.SkyCoord(
+        x0, y0, frame=aia_map.coordinate_frame
+    )
+
+    top_right1 = astropy.coordinates.SkyCoord(
+        xf, yf, frame=aia_map.coordinate_frame
+    )
+
+    submap_registered_aia_map = aia_map.submap(
+        bottom_left=bottom_left1,
+        top_right=top_right1
+    )
+
+    rotated_submap_registered_aia_map = submap_registered_aia_map.rotate(
+        angle=angle * u.deg,
+        missing=0
+    )
+
+    yy1 = offset_y + y1
+    yy2 = file1['profiles'].shape[1] + offset_y + y2
+    xx1 = offset_x + x1
+    xx2 = file1['profiles'].shape[2] + offset_x + x2
+
+    bl = rotated_submap_registered_aia_map.pixel_to_world(xx1 * u.pixel, yy1 * u.pixel)
+    br = rotated_submap_registered_aia_map.pixel_to_world(xx2 * u.pixel, yy1 * u.pixel)
+    tr = rotated_submap_registered_aia_map.pixel_to_world(xx2 * u.pixel, yy2 * u.pixel)
+    tl = rotated_submap_registered_aia_map.pixel_to_world(xx1 * u.pixel, yy2 * u.pixel)
+
+    ny0 = -318 * u.arcsec
+
+    nx0 = -193 * u.arcsec
+
+    nxf = 60 * u.arcsec
+
+    nyf = -141 * u.arcsec
+
+    nbottom_left1 = astropy.coordinates.SkyCoord(
+        nx0, ny0, frame=aia_map.coordinate_frame
+    )
+
+    ntop_right1 = astropy.coordinates.SkyCoord(
+        nxf, nyf, frame=aia_map.coordinate_frame
+    )
+
+    nsubmap_registered_aia_map = aia_map.submap(
+        bottom_left=nbottom_left1,
+        top_right=ntop_right1
+    )
+
+    dd = nsubmap_registered_aia_map.data
+
+    extent = [
+        -(nsubmap_registered_aia_map.meta['crpix1'] - 1) * 0.6,
+        -(nsubmap_registered_aia_map.meta['crpix1'] - 1) * 0.6 + dd.shape[1] * 0.6,
+        -(nsubmap_registered_aia_map.meta['crpix2'] - 1) * 0.6,
+        -(nsubmap_registered_aia_map.meta['crpix2'] - 1) * 0.6 + dd.shape[0] * 0.6
+    ]
+
+    font = {'size': 6}
+
+    matplotlib.rc('font', **font)
+
+    fig, axs = plt.subplots(1, 1, figsize=(3.5, 2.33))
+
+    vmin = 0
+    vmax = 200
+
+    im = axs.imshow(nsubmap_registered_aia_map.data / 1e3, cmap='hot', origin='lower', extent=extent)#, vmin=vmin, vmax=vmax)
+
+    axs.plot([bl.Tx.value, br.Tx.value, tr.Tx.value, tl.Tx.value, bl.Tx.value], [bl.Ty.value, br.Ty.value, tr.Ty.value, tl.Ty.value, bl.Ty.value], color='white', linewidth=0.5)
+
+    axins = inset_axes(
+        axs,
+        width="100%",
+        height="100%",
+        loc="upper right",
+        bbox_to_anchor=(1.02, 0.0, 0.05, 1),
+        bbox_transform=axs.transAxes,
+        borderpad=0,
+    )
+
+    ticks = [0, 50, 100, 150, 200]
+
+    cbar = fig.colorbar(im, cax=axins, orientation='vertical')#, ticks=ticks)
+
+    # cbar.ax.set_yticklabels(['', '50', '', '150', ''])
+
+    axs.set_xlabel('Solar X [arcsec]')
+
+    axs.set_ylabel('Solar Y [arcsec]')
+
+    axs.text(
+        0.15, 1.05,
+        'NOAA 13315 at 2023-05-27 02:48:00 UT',
+        transform=axs.transAxes
+    )
+
+    axs.text(
+        1.145   , 0.25,
+        r'Intensity [$\times$1e3 DN/s]',
+        transform=axs.transAxes,
+        rotation=90
+    )
+
+    axs.set_yticks([-150, -200, -250, -300], [-150, -200, -250, -300])
+
+    axs.set_xticks([-150, -100, -50, 0, 50], [-150, -100, -50, 0, 50])
+
+    axs.xaxis.set_minor_locator(MultipleLocator(10))
+
+    axs.yaxis.set_minor_locator(MultipleLocator(10))
+
+    axs.grid(linewidth=0.25)
+
+    plt.subplots_adjust(left=0.13, bottom=0.05, right=0.87, top=1, wspace=0.0, hspace=0.0)
+
+    plt.savefig(write_path / '{}.pdf'.format(Path(aligned_aia_file).name), format='pdf', dpi=300)
+
+
+def make_ca_wfa_plots(points, pcolors, l1x, l1y, l2x, l2y, line_colors):
+    colors = ["blue", "green", "white", "darkgoldenrod", "darkred"]
+
+    colors.reverse()
+
+    cmap1 = LinearSegmentedColormap.from_list("mycmap", colors)
+
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/')
+
+    wing_file = base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_mag_ca_blue_wing_differing_wave.fits'
+
+    core_file = base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_ca_wing_blue_spatial.fits'
+
+    y1 = 15
+    y2 = 65
+    x1 = 3
+    x2 = 53
+
+    extent = [0, 0.6 * 50, 0, 0.6 * 50]
+
+    write_path = Path('/home/harsh/CourseworkRepo/KTTAnalysis/figures')
+
+    mag_ca_wing, _ = sunpy.io.read_file(wing_file)[0]
+
+    mag_ca_core, _ = sunpy.io.read_file(core_file)[0]
+
+    mag_ca_wing = mag_ca_wing[y1:y2, x1:x2]
+
+    mag_ca_core = mag_ca_core[y1:y2, x1:x2]
+
+    font = {'size': 8}
+
+    matplotlib.rc('font', **font)
+
+    plt.close('all')
+
+    fig, axs = plt.subplots(1, 2, figsize=(7, 3.5))
+
+    axs[0].imshow(mag_ca_wing / 1e3, cmap=cmap1, origin='lower', extent=extent, vmin=-2, vmax=2)
+
+    im1 = axs[1].imshow(mag_ca_core / 1e3, cmap=cmap1, origin='lower', extent=extent, vmin=-2, vmax=2)
+
+    level5path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/')
+
+    sunspot_mask, _ = sunpy.io.read_file(level5path / 'sunspot_mask.fits')[0]
+
+    lightbridge_mask, _ = sunpy.io.read_file(level5path / 'lightbridge_mask.fits')[0]
+
+    emission_mask, _ = sunpy.io.read_file(level5path / 'emission_mask.fits')[0]
+
+    X, Y = np.meshgrid(np.arange(50) * 0.6, np.arange(50) * 0.6)
+
+    axs[0].contour(X, Y, sunspot_mask, levels=0, colors='black', linewidths=0.5)
+    axs[1].contour(X, Y, sunspot_mask, levels=0, colors='black', linewidths=0.5)
+
+    axs[0].contour(X, Y, lightbridge_mask, levels=0, colors='green', linewidths=0.5)
+    axs[1].contour(X, Y, lightbridge_mask, levels=0, colors='green', linewidths=0.5)
+
+    axs[0].contour(X, Y, emission_mask, levels=0, colors='cyan', linewidths=0.5)
+    axs[1].contour(X, Y, emission_mask, levels=0, colors='cyan', linewidths=0.5)
+
+    axs[0].plot(
+        l2x[np.array([0, l2x.size // 2, l2x.size - 1, (l2x.size // 2) - 1, 0])] * 0.6,
+        l2y[np.array([0, l2y.size // 2, l2y.size - 1, (l2y.size // 2) - 1, 0])] * 0.6,
+        linewidth=0.5,
+        color=line_colors[1]
+    )
+
+    axs[1].plot(
+        l2x[np.array([0, l2x.size // 2, l2x.size - 1, (l2x.size // 2) - 1, 0])] * 0.6,
+        l2y[np.array([0, l2y.size // 2, l2y.size - 1, (l2y.size // 2) - 1, 0])] * 0.6,
+        linewidth=0.5,
+        color=line_colors[1]
+    )
+
+    for indice, point in enumerate(points):
+        for i in range(2):
+                axs[i].scatter((point[0]) * 0.6, (point[1]) * 0.6, marker='x', s=8, color=pcolors[indice])
+
+    axins00 = inset_axes(
+        axs[1],
+        width="90%",
+        height="70%",
+        loc="upper left",
+        bbox_to_anchor=(0.05, 0.01, 0.8, 0.05),
+        bbox_transform=axs[1].transAxes,
+        borderpad=0,
+    )
+
+    cbar = fig.colorbar(im1, cax=axins00, orientation='horizontal')
+
+    cbar.ax.xaxis.set_ticks_position('top')
+
+    ticks = [0, 5, 10, 15, 20, 25]
+
+    for i in range(2):
+        axs[i].set_xticks(ticks, [])
+        axs[i].set_yticks(ticks, [])
+        axs[i].xaxis.set_minor_locator(MultipleLocator(1))
+        axs[i].yaxis.set_minor_locator(MultipleLocator(1))
+
+    axs[0].set_yticks(ticks, ticks)
+
+    axs[0].set_xticks(ticks, ticks)
+    axs[1].set_xticks(ticks, ticks)
+
+    axs[0].text(
+        0.77, -0.13,
+        'Scan direction [arcsec]',
+        transform=axs[0].transAxes,
+        color='black'
+    )
+
+    axs[0].text(
+        -0.24, 0.3,
+        'Slit direction [arcsec]',
+        transform=axs[0].transAxes,
+        color='black',
+        rotation=90
+    )
+
+    axs[0].text(
+        0.5, 0.9,
+        r'(a) WFA',
+        transform=axs[0].transAxes,
+        color='black'
+    )
+
+    axs[0].text(
+        0.45, 0.8,
+        r'(Ca blue lobe maxima $\pm$0.05 $\mathrm{\AA}$)',
+        transform=axs[0].transAxes,
+        color='black'
+    )
+
+    axs[1].text(
+        0.5, 0.9,
+        r'(b) WFA',
+        transform=axs[1].transAxes,
+        color='black'
+    )
+
+    axs[1].text(
+        0.45, 0.8,
+        r'(Ca $-$0.45 to $-$0.35 $\mathrm{\AA}$)',
+        transform=axs[1].transAxes,
+        color='black'
+    )
+
+    plt.subplots_adjust(left=0.13, right=1, bottom=0.13, top=1, wspace=0.0, hspace=0.0)
+
+    plt.savefig(
+        write_path / 'CaWFAMagFieldBlue.pdf',
+        format='pdf',
+        dpi=300
+    )
+
+
+def make_one_ca_wfa_plots(points, pcolors, l1x, l1y, l2x, l2y, line_colors):
+    colors = ["blue", "green", "white", "darkgoldenrod", "darkred"]
+
+    colors.reverse()
+
+    cmap1 = LinearSegmentedColormap.from_list("mycmap", colors)
+
+    base_path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/')
+
+    core_file = base_path / 'aligned_Ca_Ha_stic_profiles_20230527_074428.nc_straylight_secondpass.nc_ca_wing_red_spatial.fits'
+
+    y1 = 15
+    y2 = 65
+    x1 = 3
+    x2 = 53
+
+    extent = [0, 0.6 * 50, 0, 0.6 * 50]
+
+    write_path = Path('/home/harsh/CourseworkRepo/KTTAnalysis/figures')
+
+    mag_ca_core, _ = sunpy.io.read_file(core_file)[0]
+
+    mag_ca_core = mag_ca_core[y1:y2, x1:x2]
+
+    font = {'size': 8}
+
+    matplotlib.rc('font', **font)
+
+    plt.close('all')
+
+    fig, axs = plt.subplots(1, 1, figsize=(3.5, 3.5))
+
+    im0 = axs.imshow(mag_ca_core / 1e3, cmap=cmap1, origin='lower', extent=extent, vmin=-3, vmax=3)
+
+    level5path = Path('/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-5-alt-alt/')
+
+    sunspot_mask, _ = sunpy.io.read_file(level5path / 'sunspot_mask.fits')[0]
+
+    lightbridge_mask, _ = sunpy.io.read_file(level5path / 'lightbridge_mask.fits')[0]
+
+    emission_mask, _ = sunpy.io.read_file(level5path / 'emission_mask.fits')[0]
+
+    X, Y = np.meshgrid(np.arange(50) * 0.6, np.arange(50) * 0.6)
+
+    axs.contour(X, Y, sunspot_mask, levels=0, colors='black', linewidths=0.5)
+
+    axs.contour(X, Y, lightbridge_mask, levels=0, colors='green', linewidths=0.5)
+
+    axs.contour(X, Y, emission_mask, levels=0, colors='cyan', linewidths=0.5)
+
+    axs.plot(
+        l2x[np.array([0, l2x.size // 2, l2x.size - 1, (l2x.size // 2) - 1, 0])] * 0.6,
+        l2y[np.array([0, l2y.size // 2, l2y.size - 1, (l2y.size // 2) - 1, 0])] * 0.6,
+        linewidth=0.5,
+        color=line_colors[1]
+    )
+
+    for indice, point in enumerate(points):
+        axs.scatter((point[0]) * 0.6, (point[1]) * 0.6, marker='x', s=8, color=pcolors[indice])
+
+    axins00 = inset_axes(
+        axs,
+        width="90%",
+        height="70%",
+        loc="upper left",
+        bbox_to_anchor=(0.05, 0.01, 0.8, 0.05),
+        bbox_transform=axs.transAxes,
+        borderpad=0,
+    )
+
+    cbar = fig.colorbar(im0, cax=axins00, orientation='horizontal')
+
+    cbar.ax.xaxis.set_ticks_position('top')
+
+    ticks = [0, 5, 10, 15, 20, 25]
+
+    axs.set_xticks(ticks, [])
+    axs.set_yticks(ticks, [])
+    axs.xaxis.set_minor_locator(MultipleLocator(1))
+    axs.yaxis.set_minor_locator(MultipleLocator(1))
+
+    axs.set_yticks(ticks, ticks)
+
+    axs.set_xticks(ticks, ticks)
+
+    axs.text(
+        0.25, -0.13,
+        'Scan direction [arcsec]',
+        transform=axs.transAxes,
+        color='black'
+    )
+
+    axs.text(
+        -0.14, 0.25,
+        'Slit direction [arcsec]',
+        transform=axs.transAxes,
+        color='black',
+        rotation=90
+    )
+
+    axs.text(
+        0.5, 0.9,
+        r'(a) WFA',
+        transform=axs.transAxes,
+        color='black'
+    )
+
+    axs.text(
+        0.4, 0.8,
+        r'$|$WFA$|$ (Ca $+$0.13 to $+$0.23 $\mathrm{\AA}$)',
+        transform=axs.transAxes,
+        color='black'
+    )
+
+    plt.subplots_adjust(left=0.13, right=1, bottom=0.13, top=1, wspace=0.0, hspace=0.0)
+
+    plt.savefig(
+        write_path / 'CaWFAMagField0p130p23.pdf',
+        format='pdf',
+        dpi=300
+    )
+
+
 if __name__ == '__main__':
     # calculate_magnetic_field('20230527', bin_factor=None)
 
-    calculate_vlos_cog_field('20230527', bin_factor=None)
+    # calculate_vlos_cog_field('20230527', bin_factor=None)
 
     # datestring='20230603'
     # timestring='073616'
@@ -4262,7 +6275,7 @@ if __name__ == '__main__':
     # l2y = np.concatenate([y2[3:], y2d[3:]])
     # line_colors = ['red', 'blue']
     # create_magnetic_field_plots(points, pcolors, l1x, l1y, l2x, l2y, line_colors)
-
+    #
     # create_magnetic_field_scatter_plots()
     # make_legend()
 
@@ -4311,3 +6324,64 @@ if __name__ == '__main__':
     # line_colors = ['red', 'blue']
     #
     # make_line_cuts(l1x, l1y, l2x, l2y, line_colors)
+
+    # make_halpha_context_image(
+    #     datestring='20230527', timestring='074428',
+    #     aia_file='hmi.Ic_720s.20230527_044800_TAI.3.magnetogram.fits',
+    #     angle=-19,
+    #     offset_x=94, offset_y=62,
+    #     init_x=-20,
+    #     init_y=-260,
+    #     y1=15,
+    #     y2=0,
+    #     x1=3,
+    #     x2=-3
+    # )
+
+    # make_context_image(
+    #     datestring='20230527', timestring='074428',
+    #     aligned_aia_file='/home/harsh/CourseworkRepo/InstrumentalUncorrectedStokes/20230527/Level-4-alt-alt/real_hmi/aia.lev1_euv_12s.2023-05-27T024834Z.171.image_lev1.fits',
+    #     angle=-19,
+    #     offset_x=94, offset_y=62,
+    #     init_x=-20,
+    #     init_y=-260,
+    #     y1=15,
+    #     y2=0,
+    #     x1=3,
+    #     x2=-3
+    # )
+
+    points = [
+        [5, 37],
+        [8, 25],
+        [23, 29],
+        [40, 30],
+        [31, 24],
+        [40, 4]
+    ]
+    pcolors = ['blueviolet', 'blue', 'dodgerblue', 'orange', 'brown', 'green', 'darkslateblue']
+    line_points = np.array(
+        [
+            [22, 34],
+            [38, 14],
+            [38, 35],
+            [26, 10]
+        ]
+    )
+    x1 = np.arange(line_points[0][0], line_points[1][0], 1)
+    l1s, l1c = np.polyfit([line_points[0][0], line_points[1][0]], [line_points[0][1], line_points[1][1]], 1)
+    y1 = np.round(x1 * l1s + l1c, 0).astype(np.int64)
+    x1d = x1 - 1
+    y1d = y1 - 1
+    l1x = np.concatenate([x1, x1d])
+    l1y = np.concatenate([y1, y1d])
+    x2 = np.arange(line_points[2][0], line_points[3][0], -1)
+    l2s, l2c = np.polyfit([line_points[2][0], line_points[3][0]], [line_points[2][1], line_points[3][1]], 1)
+    y2 = np.round(x2 * l2s + l2c, 0).astype(np.int64)
+    x2d = x2 - 1
+    y2d = y2 + 1
+    l2x = np.concatenate([x2[3:], x2d[3:]])
+    l2y = np.concatenate([y2[3:], y2d[3:]])
+    line_colors = ['red', 'blue']
+    # make_ca_wfa_plots(points, pcolors, l1x, l1y, l2x, l2y, line_colors)
+    make_one_ca_wfa_plots(points, pcolors, l1x, l1y, l2x, l2y, line_colors)
